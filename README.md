@@ -56,7 +56,7 @@ const uint8* str_iter = (const uint8*)str;
 while( *str_iter )
 {
 	utf8_lookup_result res[128];
-	int res_size = ARRAY_LENGTH( res );
+	size_t res_size = ARRAY_LENGTH( res );
 
 	utf8_lookup_error err = utf8_lookup_perform( lookup_data, str_iter, &str_iter, res, &res_size );
 	ASSERT( err == UTF8_LOOKUP_ERROR_OK );
