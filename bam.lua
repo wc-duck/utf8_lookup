@@ -28,7 +28,8 @@ BUILD_PATH = "local"
 platform = "linux_x86_64"
 config   = "debug"
 
-local settings = NewSettings() -- {}
+local settings       = NewSettings()
+local gtest_settings = NewSettings()
 
 settings.cc.includes:Add("include")
 if family ~= "windows" then
@@ -50,15 +51,19 @@ local output_func = function(settings, path) return PathJoin(output_path, PathFi
 settings.cc.Output = output_func
 settings.lib.Output = output_func
 settings.link.Output = output_func
+gtest_settings.cc.Output = output_func
+gtest_settings.lib.Output = output_func
+gtest_settings.link.Output = output_func
 
 local objs  = Compile( settings, 'src/utf8_lookup.cpp' )
 local lib   = StaticLibrary( settings, 'utf8_lookup', objs )
 
 settings.cc.includes:Add( 'test/gtest/include' )
-settings.cc.includes:Add( 'test/gtest' )
 settings.link.libpath:Add( 'local/' .. config .. '/' .. platform )
 
-local gtest      = StaticLibrary( settings, 'gtest', Compile( settings, Collect( 'test/gtest/src/gtest-all.cc' ) ) )
+gtest_settings.cc.includes:Add( 'test/gtest' )
+gtest_settings.cc.includes:Add( 'test/gtest/include' )
+local gtest      = StaticLibrary( gtest_settings, 'gtest', Compile( gtest_settings, Collect( 'test/gtest/src/gtest-all.cc' ) ) )
 
 local test_objs  = Compile( settings, 'test/utf8_lookup_tests.cpp' )
 local tests      = Link( settings, 'utf8_lookup_tests', test_objs, lib, gtest )
