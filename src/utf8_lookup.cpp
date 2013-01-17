@@ -74,7 +74,7 @@
 
 static ALWAYSINLINE uint64_t bit_pop_cnt( uint64_t val )
 {
-#if defined( __GNUC__ ) && defined( __SSE4_2__ )
+#if defined( __GNUC__ ) && defined( __POPCNT__ )
 	// the gcc implementation of popcountll is only faster when the actual instruction exists
 	return __builtin_popcountll( (unsigned long long)val );
 #else
