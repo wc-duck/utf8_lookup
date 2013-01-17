@@ -33,7 +33,7 @@ local settings = NewSettings() -- {}
 settings.cc.includes:Add("include")
 if family ~= "windows" then
 	-- TODO: HAXXOR!!!
-	settings.cc.flags:Add( "-Wconversion", "-Wextra", "-Wall", "-Werror", "-Wstrict-aliasing=2" )
+	settings.cc.flags:Add( "-Wconversion", "-Wextra", "-Wall", "-Werror", "-Wstrict-aliasing=2", "-std=gnu++0x" )
 	settings.link.libs:Add( 'gtest', 'pthread', 'rt' )
 else
 	platform = "winx64"
@@ -62,8 +62,6 @@ local gtest      = StaticLibrary( settings, 'gtest', Compile( settings, Collect(
 
 local test_objs  = Compile( settings, 'test/utf8_lookup_tests.cpp' )
 local tests      = Link( settings, 'utf8_lookup_tests', test_objs, lib, gtest )
-
-settings.cc.flags:Add( "-std=gnu++0x" )
 
 local bench_objs = Compile( settings, 'benchmark/utf8_bench.cpp' )
 local benchmark  = Link( settings, 'utf8_lookup_bench', bench_objs, lib )

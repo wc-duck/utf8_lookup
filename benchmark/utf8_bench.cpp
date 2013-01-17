@@ -45,21 +45,23 @@
 
 	inline uint64_t cpu_freq() { return 1000000000; }
 #elif defined(_MSC_VER)
-	inline uint64 cpu_tick()
+    #include <windows.h>
+
+	inline uint64_t cpu_tick()
 	{
 		LARGE_INTEGER t;
 		QueryPerformanceCounter(&t);
-		return (uint64)t.QuadPart;
+		return (uint64_t)t.QuadPart;
 	}
 
-	inline uint64 cpu_freq()
+	inline uint64_t cpu_freq()
 	{
-		static uint64 freq = 0;
+		static uint64_t freq = 0;
 		if ( freq == 0 )
 		{
 			LARGE_INTEGER t;
 			QueryPerformanceFrequency(&t);
-			freq = (uint64) t.QuadPart;
+			freq = (uint64_t) t.QuadPart;
 		}
 		return freq;
 	}
