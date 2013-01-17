@@ -74,7 +74,7 @@
 static inline uint64_t bit_pop_cnt( uint64_t val )
 {
 	return __builtin_popcountll( (unsigned long long)val );
-	// return test( (uint32_t)( val >> 32 ) ) | test( (uint32_t)val );
+	// return test( (uint32_t)( val >> 32 ) ) + test( (uint32_t)val );
 }
 
 static inline int utf8_num_trailing_bytes( int first_byte )
