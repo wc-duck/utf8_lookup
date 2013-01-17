@@ -73,10 +73,13 @@ if ScriptArgs["test_filter"] then
 end
 
 if family == "windows" then
-	AddJob( "test", "unittest", string.gsub( tests, "/", "\\" ) .. test_args, tests, tests )
+	AddJob( "test",  "unittest",  string.gsub( tests, "/", "\\" ) .. test_args, tests, tests )
+	AddJob( "bench", "benchmark", string.gsub( benchmark, "/", "\\" ), benchmark, benchmark )
 else
-	AddJob( "test", "unittest", "valgrind -v --leak-check=full --track-origins=yes " .. tests .. test_args, tests, tests )
+	AddJob( "test",  "unittest",  "valgrind -v --leak-check=full --track-origins=yes " .. tests .. test_args, tests, tests )
+	AddJob( "bench", "benchmark", benchmark, benchmark )
 end
 
-DefaultTarget( tests )
+PseudoTarget( "all", tests, benchmark )
+DefaultTarget( "all" )
 
