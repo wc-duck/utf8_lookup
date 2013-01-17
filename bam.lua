@@ -68,16 +68,21 @@ settings.cc.flags:Add( "-std=gnu++0x" )
 local bench_objs = Compile( settings, 'benchmark/utf8_bench.cpp' )
 local benchmark  = Link( settings, 'utf8_lookup_bench', bench_objs, lib )
 
-test_args = ""
-if ScriptArgs["test_filter"] then
-	test_args = " --gtest_filter=" .. ScriptArgs["test_filter"]
+function test_args()
+    if ScriptArgs["test_filter"] then
+        return ' --gtest_filter=' .. ScriptArgs["test_filter"]
+    end
+    return ''
 end
 
 if family == "windows" then
-	AddJob( "test", "unittest", string.gsub( tests, "/", "\\" ) .. test_args, tests, tests )
+	AddJob( "test",  "unittest",  string.gsub( tests, "/", "\\" ) .. test_args(), tests, tests )
+	AddJob( "bench", "benchmark", string.gsub( benchmark, "/", "\\" ), benchmark, benchmark )
 else
-	AddJob( "test", "unittest", "valgrind -v --leak-check=full --track-origins=yes " .. tests .. test_args, tests, tests )
+	AddJob( "test",  "unittest",  "valgrind -v --leak-check=full --track-origins=yes " .. tests .. test_args(), tests, tests )
+	AddJob( "bench", "benchmark", benchmark, benchmark )
 end
 
-DefaultTarget( tests )
+PseudoTarget( "all", tests, benchmark )
+DefaultTarget( "all" )
 

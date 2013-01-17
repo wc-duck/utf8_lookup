@@ -64,17 +64,25 @@
 		- could use pop_count to select if available to get 0 or 1 on availability.
 */
 
-//static inline uint32_t test( uint32_t u32 )
-//{
-//	u32 = u32 - ( ( u32 >> 1 ) & 0x55555555 );
-//	u32 = ( u32 & 0x33333333 ) + ( ( u32 >> 2 ) & 0x33333333 );
-//	return ( ( ( u32 + ( u32 >> 4 ) ) & 0x0F0F0F0F ) * 0x01010101 ) >> 24;
-//}
+#if defined( __GNUC__ )
+#  define ALWAYSINLINE __attribute__((always_inline))
+#elif defined( _MSC_VER )
+#  define ALWAYSINLINE __forceinline
+#else
+#  define ALWAYSINLINE inline
+#endif
 
-static inline uint64_t bit_pop_cnt( uint64_t val )
+static ALWAYSINLINE uint64_t bit_pop_cnt( uint64_t val )
 {
+#if defined( __GNUC__ ) && defined( __POPCNT__ )
+	// the gcc implementation of popcountll is only faster when the actual instruction exists
 	return __builtin_popcountll( (unsigned long long)val );
-	// return test( (uint32_t)( val >> 32 ) ) | test( (uint32_t)val );
+#else
+	val = (val & 0x5555555555555555ULL) + ((val >> 1) & 0x5555555555555555ULL);
+	val = (val & 0x3333333333333333ULL) + ((val >> 2) & 0x3333333333333333ULL);
+	val = (val & 0x0F0F0F0F0F0F0F0FULL) + ((val >> 4) & 0x0F0F0F0F0F0F0F0FULL);
+	return (val * 0x0101010101010101ULL) >> 56;
+#endif
 }
 
 static inline int utf8_num_trailing_bytes( int first_byte )
