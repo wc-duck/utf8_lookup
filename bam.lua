@@ -33,10 +33,7 @@ local settings = NewSettings() -- {}
 settings.cc.includes:Add("include")
 if family ~= "windows" then
 	-- TODO: HAXXOR!!!
-	settings.link.libpath:Add( '../shmup/local/debug/linux_x86_64' )
-
 	settings.cc.flags:Add( "-Wconversion", "-Wextra", "-Wall", "-Werror", "-Wstrict-aliasing=2" )
-	settings.cc.includes:Add("../wc_engine/externals/gtest/include/")
 	settings.link.libs:Add( 'gtest', 'pthread', 'rt' )
 else
 	platform = "winx64"
@@ -44,9 +41,7 @@ else
 	-- TODO: HAXXOR!!!
 	settings.link.flags:Add( "/NODEFAULTLIB:LIBCMT.LIB" );
 	
-	settings.link.libpath:Add("../wc_games/shmup/local/debug/winx64/")
-	settings.link.libs:Add( 'gtest' )
-	settings.cc.includes:Add("../wc_games/wc_engine/externals/gtest/include/")
+    settings.link.libs:Add( 'gtest' )
 	settings.cc.defines:Add("_ITERATOR_DEBUG_LEVEL=0")
 end
 
@@ -59,8 +54,14 @@ settings.link.Output = output_func
 local objs  = Compile( settings, 'src/utf8_lookup.cpp' )
 local lib   = StaticLibrary( settings, 'utf8_lookup', objs )
 
+settings.cc.includes:Add( 'test/gtest/include' )
+settings.cc.includes:Add( 'test/gtest' )
+settings.link.libpath:Add( 'local/' .. config .. '/' .. platform )
+
+local gtest      = StaticLibrary( settings, 'gtest', Compile( settings, Collect( 'test/gtest/src/gtest-all.cc' ) ) )
+
 local test_objs  = Compile( settings, 'test/utf8_lookup_tests.cpp' )
-local tests      = Link( settings, 'utf8_lookup_tests', test_objs,  lib )
+local tests      = Link( settings, 'utf8_lookup_tests', test_objs, lib, gtest )
 
 settings.cc.flags:Add( "-std=gnu++0x" )
 
