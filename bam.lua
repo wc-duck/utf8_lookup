@@ -26,25 +26,13 @@
 BUILD_PATH = "local"
 
 platform = "linux_x86_64"
+if family == "windows" then
+    platform = "winx64"
+end
 config   = "debug"
 
 local settings       = NewSettings()
 local gtest_settings = NewSettings()
-
-settings.cc.includes:Add("include")
-if family ~= "windows" then
-	-- TODO: HAXXOR!!!
-	settings.cc.flags:Add( "-Wconversion", "-Wextra", "-Wall", "-Werror", "-Wstrict-aliasing=2", "-std=gnu++0x" )
-	settings.link.libs:Add( 'gtest', 'pthread', 'rt' )
-else
-	platform = "winx64"
-	
-	-- TODO: HAXXOR!!!
-	settings.link.flags:Add( "/NODEFAULTLIB:LIBCMT.LIB" );
-	
-    settings.link.libs:Add( 'gtest' )
-	settings.cc.defines:Add("_ITERATOR_DEBUG_LEVEL=0")
-end
 
 local output_path = PathJoin( BUILD_PATH, PathJoin( config, platform ) )
 local output_func = function(settings, path) return PathJoin(output_path, PathFilename(PathBase(path)) .. settings.config_ext) end
@@ -54,6 +42,22 @@ settings.link.Output = output_func
 gtest_settings.cc.Output = output_func
 gtest_settings.lib.Output = output_func
 gtest_settings.link.Output = output_func
+
+settings.cc.includes:Add("include")
+
+if family ~= "windows" then
+	settings.cc.flags:Add( "-Wconversion", "-Wextra", "-Wall", "-Werror", "-Wstrict-aliasing=2", "-std=gnu++0x" )
+	settings.link.libs:Add( 'gtest', 'pthread', 'rt' )
+else
+	platform = "winx64"
+	settings.link.flags:Add( "/NODEFAULTLIB:LIBCMT.LIB" );
+	
+    settings.link.libs:Add( 'gtest' )
+	settings.cc.defines:Add("_ITERATOR_DEBUG_LEVEL=0")
+    settings.cc.flags:Add("/EHsc")
+    gtest_settings.cc.defines:Add("_ITERATOR_DEBUG_LEVEL=0")
+    gtest_settings.cc.flags:Add("/EHsc")
+end
 
 local objs  = Compile( settings, 'src/utf8_lookup.cpp' )
 local lib   = StaticLibrary( settings, 'utf8_lookup', objs )
