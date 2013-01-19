@@ -46,14 +46,13 @@ gtest_settings.link.Output = output_func
 settings.cc.includes:Add("include")
 
 if family ~= "windows" then
-	settings.cc.flags:Add( "-Wconversion", "-Wextra", "-Wall", "-Werror", "-Wstrict-aliasing=2", "-std=gnu++0x" )
-	settings.link.libs:Add( 'gtest', 'pthread', 'rt' )
+    settings.cc.flags:Add( "-Wconversion", "-Wextra", "-Wall", "-Werror", "-Wstrict-aliasing=2", "-std=gnu++0x" )
+    settings.link.libs:Add( 'gtest', 'pthread', 'rt' )
 else
-	platform = "winx64"
-	settings.link.flags:Add( "/NODEFAULTLIB:LIBCMT.LIB" );
+    settings.link.flags:Add( "/NODEFAULTLIB:LIBCMT.LIB" );
 	
     settings.link.libs:Add( 'gtest' )
-	settings.cc.defines:Add("_ITERATOR_DEBUG_LEVEL=0")
+    settings.cc.defines:Add("_ITERATOR_DEBUG_LEVEL=0")
     settings.cc.flags:Add("/EHsc")
     gtest_settings.cc.defines:Add("_ITERATOR_DEBUG_LEVEL=0")
     gtest_settings.cc.flags:Add("/EHsc")
