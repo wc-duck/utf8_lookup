@@ -147,229 +147,116 @@ static int utf8_split_to_bytes( unsigned int cp, unsigned int* bytes )
 	return -1;
 }
 
-static int utf8_split_group_and_gid( unsigned int cp, uint64_t* groups, uint64_t* gids )
-{
-	unsigned int bytes[4];
-	int octet = utf8_split_to_bytes( cp, bytes );
-
-	for( int i = 0; i <= octet; ++i )
-	{
-		groups[i] = (uint64_t)(bytes[i] >> 6);
-		gids[i]   = (uint64_t)(bytes[i] & 63);
-	}
-
-	return octet;
-}
-
 struct lookup_elem
 {
 	uint64_t avail;
 	uint32_t offset;
 };
 
-static void utf8_finalize_subgroup( lookup_elem* first, lookup_elem* last, uint32_t start_offset )
-{
-	uint32_t offset = start_offset;
-	lookup_elem* curr = first;
-
-	while( curr != last )
-	{
-		curr->offset = offset;
-		offset += (uint32_t)bit_pop_cnt( curr->avail );
-		++curr;
-	}
-
-	curr->offset = offset;
-}
-
-static void utf8_write_start_bitfield( unsigned int* cp_start, unsigned int* cp_end, lookup_elem* elem, int octet )
-{
-	uint64_t group[4]; uint64_t gid[4];
-
-	while( cp_start < cp_end && utf8_split_group_and_gid( *cp_start, group, gid ) == octet )
-	{
-		elem->avail |= (uint64_t)1 << gid[0];
-		++cp_start;
-	}
-}
+static const uint64_t START_OFFSET[4] = { 0, 2, 3, 4 };
 
 utf8_lookup_error utf8_lookup_gen_table( void*         table,
 					 	 	 	 	 	 size_t        table_size,
 					 	 	 	 	 	 unsigned int* codepoints,
 					 	 	 	 	 	 unsigned int  num_codepoints )
 {
-	lookup_elem* first_bitfield = (lookup_elem*)table;
-	lookup_elem* next_bitfield  = first_bitfield;
-	next_bitfield++; // save one for 0x0
+    memset( table, 0x0, table_size );
+    
+    lookup_elem* out_table = (lookup_elem*)table;
 
-	lookup_elem* o0_first_byte = next_bitfield; next_bitfield += 3; // need 3 for ascii
-	lookup_elem* o1_first_byte = next_bitfield++;
-	lookup_elem* o2_first_byte = next_bitfield++;
-	lookup_elem* o3_first_byte = next_bitfield++;
+    // loop all codepoints
+    
+    unsigned int* start = codepoints;
+    unsigned int* end   = codepoints + num_codepoints;
+    
+    
+    unsigned int curr_elem     = 0;
+    
+    int octet_start[5] = { -1, -1, -1, -1, -1 };
+    
+    for( int octet = 0; octet < 5; ++octet )
+    {
+		uint64_t last_prev_gid = (uint64_t)-1;
+        unsigned int* curr = start;
+        while( curr != end )
+        {
+			unsigned int gids[4];
+            int curr_octet = utf8_split_to_bytes( *curr++, gids );
 
-	uint64_t GROUP_RESET[3] = { (uint64_t)-1, (uint64_t)-1, (uint64_t)-1 };
-	uint64_t last_gids[3];
+            if( octet == 0 )
+            {
+                // we are in the static section of the table.
+                curr_elem = (unsigned int)(START_OFFSET[ curr_octet ] + ( gids[ octet ] >> 6  ) );
+            }
+            else
+            {
+                // we are in the dynamic section of the table.
+                curr_elem = curr_elem < 5 ? 4 : curr_elem;
+                
+                if( last_prev_gid != gids[ octet - 1 ] )
+                {
+                    ++curr_elem;
+                    last_prev_gid = gids[ octet - 1 ];
+                }
+            }
+            
+            if( octet_start[ octet ] == -1 )
+                octet_start[ octet ] = curr_elem;
+            
+            if( octet == curr_octet )
+            {
+                // advance start, we will not do anything with this char again.
+                ++start;
+                
+                // mark element as chars
+                out_table[ curr_elem ].offset = 1;
+            }
+            else
+            {
+                // mark element as group
+                out_table[ curr_elem ].offset = 2;
+            }
 
-	#define RESET_LAST_GIDS  memcpy( last_gids, GROUP_RESET, sizeof( last_gids ) )
-	#define UPDATE_LAST_GIDS memcpy( last_gids, gid,         sizeof( last_gids ) )
+			// set the avail bit
+			out_table[ curr_elem ].avail |= (uint64_t)1 << gids[ octet ];
+        }
+    }
 
-	lookup_elem* o2; lookup_elem* o3; lookup_elem* o4;
+    // write offsets!
 
-	lookup_elem* o2_start = 0x0;
-	lookup_elem* o3_start = 0x0;
+    octet_start[4] = curr_elem + 1;
+    int last_start = curr_elem + 1;
+    for( int i = 3; i >= 0; --i )
+    {
+        if( octet_start[i] == -1 )
+            octet_start[i] = last_start;
+        else
+            last_start = octet_start[i];
+    }
+    
+    uint32_t char_offset = 1;
+    uint32_t group_offset = 6;
+    
+    for( unsigned int octet = 0; octet < 4; ++octet )
+    {
+		group_offset = octet_start[ octet + 1 ];
 
-	unsigned int written_chars = 1; // 0 is reserved as non-existing
-
-	memset( table, 0x0, table_size );
-
-	unsigned int i = 0;
-
-	uint64_t group[4];
-	uint64_t gid[4];
-
-	// o1!
-	for( ; i < num_codepoints && utf8_split_group_and_gid( codepoints[i], group, gid ) == 0; ++i )
-	{
-		o0_first_byte[ group[0] ].avail |= (uint64_t)1 << gid[0];
-		++written_chars;
-	}
-
-	// finalize o1!
-	o0_first_byte[0].offset = 1;
-	o0_first_byte[1].offset = o0_first_byte[0].offset + (uint32_t)bit_pop_cnt( o0_first_byte[0].avail );
-
-
-	// octet 2
-	RESET_LAST_GIDS;
-
-	o1_first_byte->offset = (uint32_t)(next_bitfield - first_bitfield);
-	utf8_write_start_bitfield( codepoints + i, codepoints + num_codepoints, o1_first_byte, 1 );
-
-	o2 = next_bitfield;
-
-
-	for( ; i < num_codepoints && utf8_split_group_and_gid( codepoints[i], group, gid ) == 1; ++i )
-	{
-		if( last_gids[0] != gid[0] )
-		{
-			o2 = next_bitfield++;
-			o2->offset = written_chars;
-			UPDATE_LAST_GIDS;
-		}
-
-		o2->avail |= (uint64_t)1 << gid[1];
-
-		++written_chars;
-	}
-
-	// octet 3
-
-	RESET_LAST_GIDS;
-
-	// build o1
-	o2_first_byte->offset = (uint32_t)(next_bitfield - first_bitfield); // next
-	utf8_write_start_bitfield( codepoints + i, codepoints + num_codepoints, o2_first_byte, 2 );
-
-	o2_start = next_bitfield;
-	o2       = o2_start;
-
-	// build o1 and o2
-	for( unsigned int i2 = i; i2 < num_codepoints && utf8_split_group_and_gid( codepoints[i2], group, gid ) == 2; ++i2 )
-	{
-		if( gid[0] != last_gids[0] )
-		{
-			o2 = next_bitfield++;
-			UPDATE_LAST_GIDS;
-		}
-
-		o2->avail |= (uint64_t)1 << gid[1];
-	}
-
-	utf8_finalize_subgroup( o2_start, o2, (uint32_t)(next_bitfield - first_bitfield) );
-
-	o3 = next_bitfield;
-
-	RESET_LAST_GIDS;
-
-	// write chars
-	for( ; i < num_codepoints && utf8_split_group_and_gid( codepoints[i], group, gid ) == 2; ++i )
-	{
-		if( gid[0] != last_gids[0] || gid[1] != last_gids[1] )
-		{
-			o3 = next_bitfield++;
-			o3->offset = written_chars;
-			UPDATE_LAST_GIDS;
-		}
-
-		o3->avail |= (uint64_t)1 << gid[2];
-		++written_chars;
-	}
-
-	// octet 4
-
-	// write start-lookup
-	o3_first_byte->offset = (uint32_t)(next_bitfield - first_bitfield); // next
-	utf8_write_start_bitfield( codepoints + i, codepoints + num_codepoints, o3_first_byte, 3 );
-
-
-	RESET_LAST_GIDS;
-
-	o2_start = next_bitfield;
-	o2       = o2_start;
-
-	// build o1 and o2
-	for( unsigned int i2 = i; i2 < num_codepoints && utf8_split_group_and_gid( codepoints[i2], group, gid ) == 3; ++i2 )
-	{
-		if( gid[0] != last_gids[0] )
-		{
-			o2 = next_bitfield++;
-			UPDATE_LAST_GIDS;
-		}
-
-		o2->avail |= (uint64_t)1 << gid[1];
-	}
-
-	utf8_finalize_subgroup( o2_start, o2, (uint32_t)(next_bitfield - first_bitfield) );
-
-	// build o3
-	o3_start = next_bitfield;
-	o3       = o3_start;
-
-	RESET_LAST_GIDS;
-
-	for( unsigned int i2 = i; i2 < num_codepoints && utf8_split_group_and_gid( codepoints[i2], group, gid ) == 3; ++i2 )
-	{
-		if( gid[0] != last_gids[0] || gid[1] != last_gids[1] )
-		{
-			o3 = next_bitfield++;
-			UPDATE_LAST_GIDS;
-		}
-
-		o3->avail |= (uint64_t)1 << gid[2];
-	}
-
-	utf8_finalize_subgroup( o3_start, o3, (uint32_t)(next_bitfield - first_bitfield) );
-
-	// write chars
-	o4 = next_bitfield;
-
-	RESET_LAST_GIDS;
-
-	// write chars
-	for( ; i < num_codepoints && utf8_split_group_and_gid( codepoints[i], group, gid ) == 3; ++i )
-	{
-		if( gid[0] != last_gids[0] ||
-			gid[1] != last_gids[1] ||
-			gid[2] != last_gids[2] )
-		{
-			o4 = next_bitfield++;
-			o4->offset = written_chars;
-			UPDATE_LAST_GIDS;
-		}
-
-		o4->avail |= (uint64_t)1 << gid[3];
-		++written_chars;
-	}
+        for( int j = octet_start[ octet ]; j < octet_start[ octet + 1 ]; ++j )
+        {
+            if( out_table[ j ].offset == 1 )
+            {
+                // writing a char
+                out_table[ j ].offset = char_offset;
+                char_offset += (uint32_t)bit_pop_cnt( out_table[ j ].avail );
+            }
+            else if( out_table[ j ].offset == 2 )
+            {
+                // writing a group
+                out_table[ j ].offset = group_offset;
+                group_offset += (uint32_t)bit_pop_cnt( out_table[ j ].avail );
+            }
+        }
+    }
 
 	return UTF8_LOOKUP_ERROR_OK;
 }
@@ -378,61 +265,45 @@ utf8_lookup_error utf8_lookup_calc_table_size( size_t*       table_size,
                                                unsigned int* codepoints,
                                                unsigned int  num_codepoints )
 {
-	uint64_t GROUP_RESET[3] = { (uint64_t)-1, (uint64_t)-1, (uint64_t)-1 };
-	uint64_t last_gids[3];
-	uint64_t group[4];
-	uint64_t gid[4];
-	unsigned int i = 0;
+    unsigned int* start = codepoints;
+    unsigned int* end   = codepoints + num_codepoints;
 
-	*table_size = 8;
+    unsigned int curr_elem = 0;
 
-	for( ; i < num_codepoints && utf8_split_group_and_gid( codepoints[i], group, gid ) == 0; ++i )
-	{}
+    for( int octet = 0; octet < 5; ++octet )
+    {
+		uint64_t last_prev_gid = (uint64_t)-1;
+        unsigned int* curr = start;
+        while( curr != end )
+        {
+			unsigned int gids[4];
+            int curr_octet = utf8_split_to_bytes( *curr++, gids );
 
-	RESET_LAST_GIDS;
+			if( octet == 0 )
+			{
+				// we are in the static section of the table.
+				curr_elem = (unsigned int)(START_OFFSET[ curr_octet ] + ( gids[ octet ] >> 6  ) );
+            }
+            else
+            {
+                // we are in the dynamic section of the table.
+                curr_elem = curr_elem < 5 ? 4 : curr_elem;
 
-	for( ; i < num_codepoints && utf8_split_group_and_gid( codepoints[i], group, gid ) == 1; ++i )
-	{
-		if( last_gids[0] != gid[0] )
-		{
-			(*table_size)++;
-			UPDATE_LAST_GIDS;
-		}
-	}
+                if( last_prev_gid != gids[ octet - 1 ] )
+                {
+                    ++curr_elem;
+                    last_prev_gid = gids[ octet - 1 ];
+                }
+            }
 
-	// octet 3
+            if( octet == curr_octet )
+                ++start; // advance start, we will not do anything with this char again.
+        }
+    }
 
-	RESET_LAST_GIDS;
-
-	// build o1 and o2
-	for( ; i < num_codepoints && utf8_split_group_and_gid( codepoints[i], group, gid ) == 2; ++i )
-	{
-		if( gid[0] != last_gids[0] ) (*table_size)++;
-		if( gid[1] != last_gids[1] ) (*table_size)++;
-		if( gid[0] != last_gids[0] || gid[1] != last_gids[1] )
-			UPDATE_LAST_GIDS;
-	}
-
-	// octet 4
-	RESET_LAST_GIDS;
-
-	// write chars
-	for( ; i < num_codepoints && utf8_split_group_and_gid( codepoints[i], group, gid ) == 3; ++i )
-	{
-		if( gid[0] != last_gids[0] ) (*table_size)++;
-		if( gid[1] != last_gids[1] ) (*table_size)++;
-		if( gid[2] != last_gids[2] ) (*table_size)++;
-
-		if( gid[0] != last_gids[0] ||
-			gid[1] != last_gids[1] ||
-			gid[2] != last_gids[2] )
-			UPDATE_LAST_GIDS;
-	}
-
-	(*table_size) *= sizeof( lookup_elem );
+    *table_size = ( curr_elem + 2 ) * sizeof( lookup_elem );
 	return UTF8_LOOKUP_ERROR_OK;
 }
-
 
 utf8_lookup_error utf8_lookup_perform( void*               lookup,
                                        const uint8_t*      str,
@@ -454,7 +325,6 @@ utf8_lookup_error utf8_lookup_perform( void*               lookup,
 
 		int octet = utf8_num_trailing_bytes( first_byte );
 
-		static const uint64_t START_OFFSET[4] = {   1,  4,  5,  6 };
 		static const uint64_t GROUP_MASK[4]   = { 127, 63, 63, 63 };
 		static const uint64_t GID_MASK[4]     = {  63, 31, 15,  7 };
 

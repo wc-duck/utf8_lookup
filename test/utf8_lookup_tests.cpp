@@ -28,8 +28,6 @@
 
 #define ARRAY_LENGTH( arr ) ( sizeof( arr )/sizeof( arr[0] ) )
 
-#include <stdio.h>
-
 size_t pack_table( uint8_t* table, size_t tab_size, unsigned int* cps, unsigned int num_cps )
 {
 	size_t size;
@@ -44,6 +42,27 @@ size_t pack_table( uint8_t* table, size_t tab_size, unsigned int* cps, unsigned 
 	EXPECT_NE( 0xFE, table[ size - 1 ] );
 
 	return size;
+}
+
+TEST( utf8, octet_1_simple )
+{
+	unsigned int test_cps[] = { '\n', '%' };
+
+	uint8_t table[ 256 ];
+	pack_table( table, sizeof(table), test_cps, ARRAY_LENGTH(test_cps) );
+
+	const uint8_t* str = (const uint8_t*)"%d";
+	const uint8_t* str_iter = str;
+
+	utf8_lookup_result res[128];
+	size_t res_size = ARRAY_LENGTH( res );
+
+	EXPECT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, str, &str_iter, res, &res_size ) );
+	EXPECT_EQ( 2u, res_size );
+
+	EXPECT_EQ( 2u, res[0].offset );
+	// ... d should return 0 since it do not exist in the lookup table...
+	EXPECT_EQ( 0u, res[1].offset );
 }
 
 TEST( utf8, octet_1 )
