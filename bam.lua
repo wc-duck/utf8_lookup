@@ -85,8 +85,9 @@ if family == "windows" then
 	AddJob( "test",  "unittest",  string.gsub( tests, "/", "\\" ) .. test_args(), tests, tests )
 	AddJob( "bench", "benchmark", string.gsub( benchmark, "/", "\\" ), benchmark, benchmark )
 else
-	AddJob( "test",  "unittest",  "valgrind -v --leak-check=full --track-origins=yes " .. tests .. test_args(), tests, tests )
-	AddJob( "bench", "benchmark", benchmark, benchmark )
+	AddJob( "test",    "unittest",  tests .. test_args(), tests, tests )
+	AddJob( "valgind", "valgrind",  "valgrind -v --leak-check=full --track-origins=yes " .. tests .. test_args(), tests, tests )
+	AddJob( "bench",   "benchmark", benchmark, benchmark )
 end
 
 PseudoTarget( "all", tests, benchmark )
