@@ -92,6 +92,47 @@ TEST( utf8, octet_1 )
 	EXPECT_EQ( 0u, res[6].offset );
 }
 
+TEST( utf8, octet_1_complete )
+{
+	unsigned int* test_cps = (unsigned int*)malloc( 128 * sizeof(unsigned int) );
+	for( int i = 0; i < 127; ++i )
+		test_cps[i] = i + 1;
+
+	uint8_t table[ 256 ];
+	pack_table( table, sizeof(table), test_cps, 127 );
+
+	uint8_t* str = (uint8_t*)malloc( 128 );
+	for( int i = 0; i < 128; ++i )
+		str[i] = (uint8_t)(127 - i);
+
+	utf8_lookup_result res[256];
+	size_t res_size = ARRAY_LENGTH( res );
+	const uint8_t* str_iter = str;
+
+	EXPECT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, str, &str_iter, res, &res_size ) );
+	EXPECT_EQ( 127u, res_size );
+
+	for( unsigned int i = 0; i < 127; ++i )
+		EXPECT_EQ( i, 127 - res[i].offset );
+
+	const uint8_t* missing_str = (const uint8_t*)"\xc3\xa5"   // å
+												 "\xc3\xa4"   // ä
+												 "\xc3\xb6"   // ö
+												 "\xc2\xa5";  // ¥;
+	const uint8_t* str_iter2 = missing_str;
+	// lookup non-existing!
+	EXPECT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, missing_str, &str_iter2, res, &res_size ) );
+	EXPECT_EQ( 4u, res_size );
+
+	EXPECT_EQ( 0u, res[0].offset );
+	EXPECT_EQ( 0u, res[1].offset );
+	EXPECT_EQ( 0u, res[2].offset );
+	EXPECT_EQ( 0u, res[3].offset );
+
+	free( str );
+	free( test_cps );
+}
+
 TEST( utf8, octet_2 )
 {
 	// TODO: add chars from all pages
