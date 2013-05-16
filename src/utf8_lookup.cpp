@@ -153,7 +153,7 @@ struct lookup_elem
 	uint32_t offset;
 };
 
-static const uint64_t START_OFFSET[4] = { 0, 2, 3, 4 };
+static const uint64_t START_OFFSET[4] = { 1, 3, 4, 5 };
 
 utf8_lookup_error utf8_lookup_gen_table( void*         table,
 					 	 	 	 	 	 size_t        table_size,
@@ -191,7 +191,7 @@ utf8_lookup_error utf8_lookup_gen_table( void*         table,
             else
             {
                 // we are in the dynamic section of the table.
-                curr_elem = curr_elem < 5 ? 4 : curr_elem;
+                curr_elem = curr_elem < 6 ? 5 : curr_elem;
                 
                 if( last_prev_gid != gids[ octet - 1 ] )
                 {
