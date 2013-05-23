@@ -28,6 +28,33 @@
 
 #define ARRAY_LENGTH( arr ) ( sizeof( arr )/sizeof( arr[0] ) )
 
+void print_as_bf( uint64_t value )
+{
+	for( int i = 0; i < 64; ++i )
+	{
+		if( ( i ) % 10 == 0 )
+			printf( " " );
+		printf("%d", (i) / 10 );
+	}
+
+	printf( "\n" );
+
+	for( uint64_t i = 0; i < 64; ++i )
+	{
+		if( ( i ) % 10 == 0 )
+			printf( " " );
+		printf("%c", ( ( value >> i ) & 1 ) ? '1' : '0' );
+	}
+
+	printf( "\n" );
+}
+
+struct test_me
+{
+	uint64_t bf;
+	uint32_t offset;
+};
+
 size_t pack_table( uint8_t* table, size_t tab_size, unsigned int* cps, unsigned int num_cps )
 {
 	size_t size;
@@ -39,7 +66,7 @@ size_t pack_table( uint8_t* table, size_t tab_size, unsigned int* cps, unsigned 
 	utf8_lookup_error err = utf8_lookup_gen_table( table, size, cps, num_cps );
 	EXPECT_EQ( UTF8_LOOKUP_ERROR_OK, err );
 	EXPECT_EQ( 0xFE, table[ size ] );
-	EXPECT_NE( 0xFE, table[ size - 1 ] );
+	EXPECT_EQ(  0x0, table[ size - 1 ] );
 
 	return size;
 }
@@ -177,7 +204,7 @@ TEST( utf8, octet_2 )
 TEST( utf8, octet_3 )
 {
 	unsigned int test_cps[] = { 0x800, 0x1024, 0x1025, 0xFFFF };
-	uint8_t table[ 256 ];
+	uint8_t table[ 256 * 2 ];
 	pack_table( table, sizeof(table), test_cps, ARRAY_LENGTH(test_cps) );
 
 	const uint8_t* str = (const uint8_t*)"\xe0\xa0\x80"  // 0x800
@@ -202,6 +229,60 @@ TEST( utf8, octet_3 )
 	EXPECT_EQ( 0u, res[4].offset );
 }
 
+int utf8_split_to_bytes( unsigned int cp, unsigned int* bytes );
+
+TEST( utf8, octet_3_bug )
+{
+	unsigned int test_cps[] = { 0x2026, 0x300F, 0x7B2C };
+
+	uint8_t table[ 256 ];
+	pack_table( table, sizeof(table), test_cps, ARRAY_LENGTH(test_cps) );
+
+	const uint8_t* str = (const uint8_t*)"\xe2\x80\xa6"  // 0x2026
+										 "\xe3\x80\x8f"  // 0x300F
+										 "\xe7\xac\xac"  // 0x7B2C
+									     "\xe2\x81\x88"; // ... do not exist in table ...
+	const uint8_t* str_iter = str;
+
+	utf8_lookup_result res[128];
+	size_t res_size = ARRAY_LENGTH( res );
+
+	EXPECT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, str, &str_iter, res, &res_size ) );
+	EXPECT_EQ( 4u, res_size );
+
+	EXPECT_EQ( 1u, res[0].offset );
+	EXPECT_EQ( 2u, res[1].offset );
+	EXPECT_EQ( 3u, res[2].offset );
+
+	// ... d should return 0 since it do not exist in the lookup table...
+	EXPECT_EQ( 0u, res[3].offset );
+}
+
+TEST( utf8, octet_3_bug_2 )
+{
+	unsigned int test_cps[] = { 0xA0, 0x2026 };
+
+	uint8_t table[ 256 ];
+	pack_table( table, sizeof(table), test_cps, ARRAY_LENGTH(test_cps) );
+
+	const uint8_t* str = (const uint8_t*)"\xc2\xa0"
+									     "\xe2\x80\xa6"  // 0x2026
+									     "\xe2\x81\x88"; // ... do not exist in table ...
+	const uint8_t* str_iter = str;
+
+	utf8_lookup_result res[128];
+	size_t res_size = ARRAY_LENGTH( res );
+
+	EXPECT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, str, &str_iter, res, &res_size ) );
+	EXPECT_EQ( 3u, res_size );
+
+	EXPECT_EQ( 1u, res[0].offset );
+	EXPECT_EQ( 2u, res[1].offset );
+
+	// ... d should return 0 since it do not exist in the lookup table...
+	EXPECT_EQ( 0u, res[2].offset );
+}
+
 TEST( utf8, octet_4 )
 {
 	unsigned int test_cps[] = { 0x10000, // octet 4 min
@@ -209,7 +290,7 @@ TEST( utf8, octet_4 )
 								0x10802,
 								0x10FFFF }; // octet 4 max
 
-	uint8_t table[ 256 ];
+	uint8_t table[ 512 ];
 	pack_table( table, sizeof(table), test_cps, ARRAY_LENGTH(test_cps) );
 
 	const uint8_t* str = (const uint8_t*)"\xf0\x90\x80\x80"  // 0x10000
@@ -261,7 +342,7 @@ TEST( utf8, octet_1_and_3 )
 {
 	unsigned int test_cps[] = { '%', '6', 'B', 'X', 'a', 'b', 0x800, 0x1024, 0x1025, 0xFFFF };
 
-	uint8_t table[ 256 ];
+	uint8_t table[ 256 * 2 ];
 	pack_table( table, sizeof(table), test_cps, ARRAY_LENGTH(test_cps) );
 
 	const uint8_t* str = (const uint8_t*)"BaXb6%"

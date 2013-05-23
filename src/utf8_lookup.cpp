@@ -107,7 +107,7 @@ static inline int utf8_num_trailing_bytes( int first_byte )
 	*/
 }
 
-static int utf8_split_to_bytes( unsigned int cp, unsigned int* bytes )
+/*static */int utf8_split_to_bytes( unsigned int cp, unsigned int* bytes )
 {
 	if ( cp <= 127 )
 	{
@@ -155,6 +155,8 @@ struct lookup_elem
 
 static const uint64_t START_OFFSET[4] = { 1, 3, 4, 5 };
 
+#include <stdio.h>
+
 utf8_lookup_error utf8_lookup_gen_table( void*         table,
 					 	 	 	 	 	 size_t        table_size,
 					 	 	 	 	 	 unsigned int* codepoints,
@@ -169,14 +171,14 @@ utf8_lookup_error utf8_lookup_gen_table( void*         table,
     unsigned int* start = codepoints;
     unsigned int* end   = codepoints + num_codepoints;
     
-    
-    unsigned int curr_elem     = 0;
+    unsigned int curr_elem = 0;
     
     int octet_start[5] = { -1, -1, -1, -1, -1 };
+    int last_octet = -1;
     
     for( int octet = 0; octet < 5; ++octet )
     {
-		uint64_t last_prev_gid = (uint64_t)-1;
+        unsigned int last_prev_gids[4] = { (unsigned int)-1, (unsigned int)-1, (unsigned int)-1, (unsigned int)-1 };
         unsigned int* curr = start;
         while( curr != end )
         {
@@ -193,13 +195,15 @@ utf8_lookup_error utf8_lookup_gen_table( void*         table,
                 // we are in the dynamic section of the table.
                 curr_elem = curr_elem < 6 ? 5 : curr_elem;
                 
-                if( last_prev_gid != gids[ octet - 1 ] )
+                if( ( memcmp( last_prev_gids, gids, ( octet ) * sizeof( unsigned int ) ) != 0 ) || last_octet != curr_octet )
                 {
                     ++curr_elem;
-                    last_prev_gid = gids[ octet - 1 ];
+                    memcpy( last_prev_gids, gids, sizeof( gids ) );
                 }
             }
             
+            last_octet = curr_octet;
+
             if( octet_start[ octet ] == -1 )
                 octet_start[ octet ] = curr_elem;
             
@@ -265,39 +269,45 @@ utf8_lookup_error utf8_lookup_calc_table_size( size_t*       table_size,
                                                unsigned int* codepoints,
                                                unsigned int  num_codepoints )
 {
+    // loop all codepoints
+
     unsigned int* start = codepoints;
     unsigned int* end   = codepoints + num_codepoints;
 
     unsigned int curr_elem = 0;
+    int last_octet = -1;
 
     for( int octet = 0; octet < 5; ++octet )
     {
-		uint64_t last_prev_gid = (uint64_t)-1;
+        unsigned int last_prev_gids[4] = { (unsigned int)-1, (unsigned int)-1, (unsigned int)-1, (unsigned int)-1 };
         unsigned int* curr = start;
         while( curr != end )
         {
 			unsigned int gids[4];
             int curr_octet = utf8_split_to_bytes( *curr++, gids );
 
-			if( octet == 0 )
-			{
-				// we are in the static section of the table.
-				curr_elem = (unsigned int)(START_OFFSET[ curr_octet ] + ( gids[ octet ] >> 6  ) );
+            if( octet == 0 )
+            {
+                // we are in the static section of the table.
+                curr_elem = (unsigned int)(START_OFFSET[ curr_octet ] + ( gids[ octet ] >> 6  ) );
             }
             else
             {
                 // we are in the dynamic section of the table.
-                curr_elem = curr_elem < 5 ? 4 : curr_elem;
+                curr_elem = curr_elem < 6 ? 5 : curr_elem;
 
-                if( last_prev_gid != gids[ octet - 1 ] )
+                if( ( memcmp( last_prev_gids, gids, ( octet ) * sizeof( unsigned int ) ) != 0 ) || last_octet != curr_octet )
                 {
                     ++curr_elem;
-                    last_prev_gid = gids[ octet - 1 ];
+                    memcpy( last_prev_gids, gids, sizeof( gids ) );
                 }
             }
 
+            last_octet = curr_octet;
+
             if( octet == curr_octet )
-                ++start; // advance start, we will not do anything with this char again.
+                // advance start, we will not do anything with this char again.
+                ++start;
         }
     }
 
