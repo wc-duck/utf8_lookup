@@ -68,6 +68,8 @@ namespace my_lib
        void construct ( pointer p, const T& value) { new((void*)p)T(value); }
        void destroy   ( pointer p )                { p->~T(); }
        void deallocate( pointer p, size_type)      { ::operator delete((void*)p); }
+
+       void reset_tracking() { g_num_alloc = 0; g_num_bytes = 0; }
    };
 
    template <class T1, class T2> bool operator== (const alloc_override<T1>&, const alloc_override<T2>&) throw() { return true; }
