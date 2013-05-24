@@ -251,7 +251,7 @@ int main( int argc, char** argv )
 		}
 
 		float time = cpu_ticks_to_sec( cpu_tick() - start );
-		printf( "unordered_map time: %f sec, %f GB/sec\n", time, (float)( file_size / ( 1024 * 1024 ) ) / time );
+		printf( "unordered_map time: %f sec, %f GB/sec\n", time, ( (float)file_size / ( 1024 * 1024 ) ) / time );
 	}
 
 	{
@@ -268,7 +268,7 @@ int main( int argc, char** argv )
 		}
 
 		float time = cpu_ticks_to_sec( cpu_tick() - start );
-		printf( "utf8_lookup time:   %f sec, %f GB/sec\n", time, (float)( file_size / ( 1024 * 1024 ) ) / time );
+		printf( "utf8_lookup time:   %f sec, %f GB/sec\n", time, ( (float)file_size / ( 1024 * 1024 ) ) / time );
 	}
 
 	// check output!
