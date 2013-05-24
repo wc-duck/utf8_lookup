@@ -85,7 +85,7 @@ static ALWAYSINLINE uint64_t bit_pop_cnt( uint64_t val )
 #endif
 }
 
-static inline int utf8_num_trailing_bytes( int first_byte )
+static ALWAYSINLINE int utf8_num_trailing_bytes( int first_byte )
 {
 	static const int UTF8_TRAILING_BYTES_TABLE[256] = {
 		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -107,7 +107,7 @@ static inline int utf8_num_trailing_bytes( int first_byte )
 	*/
 }
 
-/*static */int utf8_split_to_bytes( unsigned int cp, unsigned int* bytes )
+static int utf8_split_to_bytes( unsigned int cp, unsigned int* bytes )
 {
 	if ( cp <= 127 )
 	{
