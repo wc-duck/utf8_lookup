@@ -132,18 +132,18 @@ utf8_lookup_error utf8_lookup_perform_std_cmp( tracked_unordered_map& compare_ma
 	return UTF8_LOOKUP_ERROR_OK;
 }
 
-static uint8_t* load_file( const char* file_name )
+static uint8_t* load_file( const char* file_name, size_t* file_size )
 {
 	FILE* f = fopen( file_name, "rb" );
 	if( f == 0x0 )
 		return 0x0;
 
 	fseek( f, 0, SEEK_END );
-	size_t file_size = ftell( f );
+	*file_size = ftell( f );
 	fseek( f, 0, SEEK_SET );
 
-	uint8_t* text = (uint8_t*)malloc( file_size );
-	size_t r = fread( text, 1, file_size, f );
+	uint8_t* text = (uint8_t*)malloc( *file_size );
+	size_t r = fread( text, 1, *file_size, f );
 	(void)r;
 	fclose( f );
 	return text;
@@ -211,7 +211,8 @@ int main( int argc, char** argv )
 		return 1;
 	}
 
-	uint8_t* text_data = load_file( argv[1] );
+	size_t file_size;
+	uint8_t* text_data = load_file( argv[1], &file_size );
 	if( text_data == 0x0 )
 	{
 		printf( "couldn't load file %s\n", argv[1] );
@@ -249,7 +250,8 @@ int main( int argc, char** argv )
 				utf8_lookup_perform_std_cmp( compare_map, str_iter, &str_iter, res1, &res_size );
 		}
 
-		printf( "unordered_map time: %f sec\n", cpu_ticks_to_sec( cpu_tick() - start ) );
+		float time = cpu_ticks_to_sec( cpu_tick() - start );
+		printf( "unordered_map time: %f sec, %f GB/sec\n", time, (float)( file_size / ( 1024 * 1024 ) ) / time );
 	}
 
 	{
@@ -265,7 +267,8 @@ int main( int argc, char** argv )
 				utf8_lookup_perform( table, str_iter, &str_iter, res2, &res_size );
 		}
 
-		printf( "utf8_lookup time:   %f sec\n", cpu_ticks_to_sec( cpu_tick() - start ) );
+		float time = cpu_ticks_to_sec( cpu_tick() - start );
+		printf( "utf8_lookup time:   %f sec, %f GB/sec\n", time, (float)( file_size / ( 1024 * 1024 ) ) / time );
 	}
 
 	// check output!
