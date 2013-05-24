@@ -149,8 +149,19 @@ static uint8_t* load_file( const char* file_name )
 	return text;
 }
 
+static int codepoint_to_octet( unsigned int cp )
+{
+	if( cp <= 0x7F ) return 0;
+	if( cp <= 0x7FF ) return 1;
+	if( cp <= 0xFFFF ) return 2;
+	if( cp <= 0x10FFFF ) return 3;
+
+	return 0;
+}
+
 static void find_all_codepoints( const uint8_t* text, std::vector<unsigned int>& cps )
 {
+	unsigned int count[4] = { 0, 0, 0, 0 };
 	const uint8_t* iter = text;
 	std::set<unsigned int> s;
 
@@ -162,6 +173,14 @@ static void find_all_codepoints( const uint8_t* text, std::vector<unsigned int>&
 	std::sort( cps.begin(), cps.end() );
 
 	printf( "num codepoints in file %lu\n", cps.size() );
+
+	for( size_t i = 0; i < cps.size(); ++i )
+		++count[ codepoint_to_octet( cps[i] ) ];
+
+	printf( "octet 1: %u\n", count[0] );
+	printf( "octet 2: %u\n", count[1] );
+	printf( "octet 3: %u\n", count[2] );
+	printf( "octet 4: %u\n", count[3] );
 }
 
 void build_compare_map( std::vector<unsigned int>& cps, tracked_unordered_map& output )
