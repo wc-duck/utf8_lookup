@@ -353,10 +353,9 @@ utf8_lookup_error utf8_lookup_perform( void*               lookup,
 			++pos;
 
 			lookup_elem* elem     = lookup_elems + group + curr_offset;
-			uint64_t available    = ( elem->avail & check_bit ) > (uint64_t)0;
 			uint64_t items_before = bit_pop_cnt( elem->avail & ( check_bit - (uint64_t)1 ) );
 
-			curr_offset = ( elem->offset + items_before ) * available;
+			curr_offset = ( elem->avail & check_bit ) > (uint64_t)0 ? elem->offset + items_before : 0x0;
 		}
 
 		// curr_offset is now either 0 for not found or offset in glyphs-table
