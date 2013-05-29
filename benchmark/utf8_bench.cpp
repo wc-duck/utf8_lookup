@@ -35,6 +35,7 @@
 #include <map>
 #include <vector>
 #include <algorithm>
+#include <iterator>
 
 #if defined(__GNUC__)
 	inline uint64_t cpu_tick()
@@ -142,8 +143,9 @@ static uint8_t* load_file( const char* file_name, size_t* file_size )
 	*file_size = ftell( f );
 	fseek( f, 0, SEEK_SET );
 
-	uint8_t* text = (uint8_t*)malloc( *file_size );
+	uint8_t* text = (uint8_t*)malloc( *file_size + 1 );
 	size_t r = fread( text, 1, *file_size, f );
+	text[ *file_size ] = '\0';
 	(void)r;
 	fclose( f );
 	return text;
@@ -165,6 +167,7 @@ static void find_all_codepoints( const uint8_t* text, std::vector<unsigned int>&
 	const uint8_t* iter = text;
 	std::set<unsigned int> s;
 
+	int i = 0;
 	while( *iter )
 		s.insert( utf8_to_unicode_codepoint( &iter ) );
 
