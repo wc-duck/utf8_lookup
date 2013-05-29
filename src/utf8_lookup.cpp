@@ -222,7 +222,7 @@ utf8_lookup_error utf8_lookup_gen_table( void*         table,
             }
 
 			// set the avail bit
-			out_table[ curr_elem ].avail |= (uint64_t)1 << gids[ octet ];
+			out_table[ curr_elem ].avail |= (uint64_t)1 << ( gids[ octet ] & 63 );
         }
     }
 
@@ -289,7 +289,7 @@ utf8_lookup_error utf8_lookup_calc_table_size( size_t*       table_size,
             if( octet == 0 )
             {
                 // we are in the static section of the table.
-                curr_elem = (unsigned int)(START_OFFSET[ curr_octet ] + ( gids[ octet ] >> 6  ) );
+                curr_elem = (unsigned int)(START_OFFSET[ curr_octet ] + ( gids[ octet ] >> 6 ) );
             }
             else
             {
