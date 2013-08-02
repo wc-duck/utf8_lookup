@@ -39,55 +39,39 @@ local output_func = function(settings, path) return PathJoin(output_path, PathFi
 settings.cc.Output = output_func
 settings.lib.Output = output_func
 settings.link.Output = output_func
-gtest_settings.cc.Output = output_func
-gtest_settings.lib.Output = output_func
-gtest_settings.link.Output = output_func
-
 settings.cc.includes:Add("include")
 
 if family ~= "windows" then
     settings.cc.flags:Add( "-Wconversion", "-Wextra", "-Wall", "-Werror", "-Wstrict-aliasing=2", "-std=gnu++0x" )
-    settings.link.libs:Add( 'gtest', 'pthread', 'rt' )
+    settings.link.libs:Add( 'rt' )
 else
     settings.link.flags:Add( "/NODEFAULTLIB:LIBCMT.LIB" );
-	
-    settings.link.libs:Add( 'gtest' )
     settings.cc.defines:Add("_ITERATOR_DEBUG_LEVEL=0")
     settings.cc.flags:Add("/EHsc")
-    gtest_settings.cc.defines:Add("_ITERATOR_DEBUG_LEVEL=0")
-    gtest_settings.cc.flags:Add("/EHsc")
 end
 
 local objs  = Compile( settings, 'src/utf8_lookup.cpp' )
 local lib   = StaticLibrary( settings, 'utf8_lookup', objs )
 
-settings.cc.includes:Add( 'test/gtest/include' )
 settings.link.libpath:Add( 'local/' .. config .. '/' .. platform )
 
-gtest_settings.cc.includes:Add( 'test/gtest' )
-gtest_settings.cc.includes:Add( 'test/gtest/include' )
-local gtest      = StaticLibrary( gtest_settings, 'gtest', Compile( gtest_settings, Collect( 'test/gtest/src/gtest-all.cc' ) ) )
-
 local test_objs  = Compile( settings, 'test/utf8_lookup_tests.cpp' )
-local tests      = Link( settings, 'utf8_lookup_tests', test_objs, lib, gtest )
+local tests      = Link( settings, 'utf8_lookup_tests', test_objs, lib )
 
 local bench_objs = Compile( settings, 'benchmark/utf8_bench.cpp' )
 local benchmark  = Link( settings, 'utf8_lookup_bench', bench_objs, lib )
 
-function test_args()
-    if ScriptArgs["test_filter"] then
-        return ' --gtest_filter=' .. ScriptArgs["test_filter"]
-    end
-    return ''
-end
+test_args = " -v"
+if ScriptArgs["test"]     then test_args = test_args .. " -t " .. ScriptArgs["test"] end
+if ScriptArgs["suite"]    then test_args = test_args .. " -s " .. ScriptArgs["suite"] end
 
 if family == "windows" then
-	AddJob( "test",  "unittest",  string.gsub( tests, "/", "\\" ) .. test_args(), tests, tests )
+	AddJob( "test",  "unittest",  string.gsub( tests, "/", "\\" ) .. test_args, tests, tests )
 	AddJob( "bench", "benchmark", string.gsub( benchmark, "/", "\\" ), benchmark, benchmark )
 else
-	AddJob( "test",    "unittest",  tests .. test_args(), tests, tests )
-	AddJob( "valgind", "valgrind",  "valgrind -v --leak-check=full --track-origins=yes " .. tests .. test_args(), tests, tests )
-	AddJob( "bench",   "benchmark", benchmark, benchmark )
+	AddJob( "test",     "unittest",  tests .. test_args, tests, tests )
+	AddJob( "valgrind", "valgrind",  "valgrind -v --leak-check=full --track-origins=yes " .. tests .. test_args, tests, tests )
+	AddJob( "bench",    "benchmark", benchmark, benchmark )
 end
 
 PseudoTarget( "all", tests, benchmark )
