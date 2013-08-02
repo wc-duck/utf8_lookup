@@ -26,7 +26,7 @@
    Fredrik Kihlander
 */
 
-#include <gtest/gtest.h>
+#include "greatest.h"
 #include <utf8_lookup/utf8_lookup.h>
 
 #define ARRAY_LENGTH( arr ) ( sizeof( arr )/sizeof( arr[0] ) )
@@ -63,18 +63,18 @@ size_t pack_table( uint8_t* table, size_t tab_size, unsigned int* cps, unsigned 
 	size_t size;
 	utf8_lookup_calc_table_size( &size, cps, num_cps );
 
-	EXPECT_GT( tab_size, size ); // safety-check
+	ASSERT( tab_size > size ); // safety-check
 	memset( table, 0xFE, tab_size );
 
 	utf8_lookup_error err = utf8_lookup_gen_table( table, size, cps, num_cps );
-	EXPECT_EQ( UTF8_LOOKUP_ERROR_OK, err );
-	EXPECT_EQ( 0xFE, table[ size ] );
-	EXPECT_EQ(  0x0, table[ size - 1 ] );
+	ASSERT_EQ( UTF8_LOOKUP_ERROR_OK, err );
+	ASSERT_EQ( 0xFE, table[ size ] );
+	ASSERT_EQ(  0x0, table[ size - 1 ] );
 
 	return size;
 }
 
-TEST( utf8, octet_1_simple )
+TEST octet_1_simple()
 {
 	unsigned int test_cps[] = { '\n', '%' };
 
@@ -87,15 +87,17 @@ TEST( utf8, octet_1_simple )
 	utf8_lookup_result res[128];
 	size_t res_size = ARRAY_LENGTH( res );
 
-	EXPECT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, str, &str_iter, res, &res_size ) );
-	EXPECT_EQ( 2u, res_size );
+	ASSERT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, str, &str_iter, res, &res_size ) );
+	ASSERT_EQ( 2u, res_size );
 
-	EXPECT_EQ( 2u, res[0].offset );
+	ASSERT_EQ( 2u, res[0].offset );
 	// ... d should return 0 since it do not exist in the lookup table...
-	EXPECT_EQ( 0u, res[1].offset );
+	ASSERT_EQ( 0u, res[1].offset );
+
+	return 0;
 }
 
-TEST( utf8, octet_1 )
+TEST octet_1()
 {
 	unsigned int test_cps[] = { '%', '6', 'B', 'X', 'a', 'b' };
 
@@ -108,21 +110,23 @@ TEST( utf8, octet_1 )
 	utf8_lookup_result res[128];
 	size_t res_size = ARRAY_LENGTH( res );
 
-	EXPECT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, str, &str_iter, res, &res_size ) );
-	EXPECT_EQ( 7u, res_size );
+	ASSERT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, str, &str_iter, res, &res_size ) );
+	ASSERT_EQ( 7u, res_size );
 
-	EXPECT_EQ( 3u, res[0].offset );
-	EXPECT_EQ( 4u, res[1].offset );
-	EXPECT_EQ( 1u, res[2].offset );
-	EXPECT_EQ( 2u, res[3].offset );
-	EXPECT_EQ( 5u, res[4].offset );
-	EXPECT_EQ( 6u, res[5].offset );
+	ASSERT_EQ( 3u, res[0].offset );
+	ASSERT_EQ( 4u, res[1].offset );
+	ASSERT_EQ( 1u, res[2].offset );
+	ASSERT_EQ( 2u, res[3].offset );
+	ASSERT_EQ( 5u, res[4].offset );
+	ASSERT_EQ( 6u, res[5].offset );
 
 	// ... d should return 0 since it do not exist in the lookup table...
-	EXPECT_EQ( 0u, res[6].offset );
+	ASSERT_EQ( 0u, res[6].offset );
+
+	return 0;
 }
 
-TEST( utf8, octet_1_complete )
+TEST octet_1_complete()
 {
 	unsigned int* test_cps = (unsigned int*)malloc( 128 * sizeof(unsigned int) );
 	for( int i = 0; i < 127; ++i )
@@ -139,11 +143,11 @@ TEST( utf8, octet_1_complete )
 	size_t res_size = ARRAY_LENGTH( res );
 	const uint8_t* str_iter = str;
 
-	EXPECT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, str, &str_iter, res, &res_size ) );
-	EXPECT_EQ( 127u, res_size );
+	ASSERT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, str, &str_iter, res, &res_size ) );
+	ASSERT_EQ( 127u, res_size );
 
 	for( unsigned int i = 0; i < 127; ++i )
-		EXPECT_EQ( i, 127 - res[i].offset );
+		ASSERT_EQ( i, 127 - res[i].offset );
 
 	const uint8_t* missing_str = (const uint8_t*)"\xc3\xa5"   // å
 												 "\xc3\xa4"   // ä
@@ -151,19 +155,21 @@ TEST( utf8, octet_1_complete )
 												 "\xc2\xa5";  // ¥;
 	const uint8_t* str_iter2 = missing_str;
 	// lookup non-existing!
-	EXPECT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, missing_str, &str_iter2, res, &res_size ) );
-	EXPECT_EQ( 4u, res_size );
+	ASSERT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, missing_str, &str_iter2, res, &res_size ) );
+	ASSERT_EQ( 4u, res_size );
 
-	EXPECT_EQ( 0u, res[0].offset );
-	EXPECT_EQ( 0u, res[1].offset );
-	EXPECT_EQ( 0u, res[2].offset );
-	EXPECT_EQ( 0u, res[3].offset );
+	ASSERT_EQ( 0u, res[0].offset );
+	ASSERT_EQ( 0u, res[1].offset );
+	ASSERT_EQ( 0u, res[2].offset );
+	ASSERT_EQ( 0u, res[3].offset );
 
 	free( str );
 	free( test_cps );
+
+	return 0;
 }
 
-TEST( utf8, octet_2 )
+TEST octet_2()
 {
 	// TODO: add chars from all pages
 	unsigned int test_cps[] = { 130,     // offset 1 = (130)
@@ -189,22 +195,23 @@ TEST( utf8, octet_2 )
 	utf8_lookup_result res[128];
 	size_t res_size = ARRAY_LENGTH( res );
 
-	EXPECT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, str, &str_iter, res, &res_size ) );
-	EXPECT_EQ( 7u, res_size );
+	ASSERT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, str, &str_iter, res, &res_size ) );
+	ASSERT_EQ( 7u, res_size );
 
-	EXPECT_EQ( 4u, res[0].offset );
-	EXPECT_EQ( 3u, res[1].offset );
-	EXPECT_EQ( 5u, res[2].offset );
-	EXPECT_EQ( 2u, res[3].offset );
-	EXPECT_EQ( 6u, res[4].offset );
-	EXPECT_EQ( 7u, res[5].offset );
+	ASSERT_EQ( 4u, res[0].offset );
+	ASSERT_EQ( 3u, res[1].offset );
+	ASSERT_EQ( 5u, res[2].offset );
+	ASSERT_EQ( 2u, res[3].offset );
+	ASSERT_EQ( 6u, res[4].offset );
+	ASSERT_EQ( 7u, res[5].offset );
 
 	// ... d should return 0 since it do not exist in the lookup table...
-	EXPECT_EQ( 0u, res[6].offset );
+	ASSERT_EQ( 0u, res[6].offset );
+
+	return 0;
 }
 
-
-TEST( utf8, octet_3 )
+TEST octet_3()
 {
 	unsigned int test_cps[] = { 0x800, 0x1024, 0x1025, 0xFFFF };
 	uint8_t table[ 256 * 2 ];
@@ -220,21 +227,21 @@ TEST( utf8, octet_3 )
 	utf8_lookup_result res[128];
 	size_t res_size = ARRAY_LENGTH( res );
 
-	EXPECT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, str, &str_iter, res, &res_size ) );
-	EXPECT_EQ( 5u, res_size );
+	ASSERT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, str, &str_iter, res, &res_size ) );
+	ASSERT_EQ( 5u, res_size );
 
-	EXPECT_EQ( 1u, res[0].offset );
-	EXPECT_EQ( 2u, res[1].offset );
-	EXPECT_EQ( 3u, res[2].offset );
-	EXPECT_EQ( 4u, res[3].offset );
+	ASSERT_EQ( 1u, res[0].offset );
+	ASSERT_EQ( 2u, res[1].offset );
+	ASSERT_EQ( 3u, res[2].offset );
+	ASSERT_EQ( 4u, res[3].offset );
 
 	// ... d should return 0 since it do not exist in the lookup table...
-	EXPECT_EQ( 0u, res[4].offset );
+	ASSERT_EQ( 0u, res[4].offset );
+
+	return 0;
 }
 
-int utf8_split_to_bytes( unsigned int cp, unsigned int* bytes );
-
-TEST( utf8, octet_3_bug )
+TEST octet_3_bug()
 {
 	unsigned int test_cps[] = { 0x2026, 0x300F, 0x7B2C };
 
@@ -250,18 +257,20 @@ TEST( utf8, octet_3_bug )
 	utf8_lookup_result res[128];
 	size_t res_size = ARRAY_LENGTH( res );
 
-	EXPECT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, str, &str_iter, res, &res_size ) );
-	EXPECT_EQ( 4u, res_size );
+	ASSERT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, str, &str_iter, res, &res_size ) );
+	ASSERT_EQ( 4u, res_size );
 
-	EXPECT_EQ( 1u, res[0].offset );
-	EXPECT_EQ( 2u, res[1].offset );
-	EXPECT_EQ( 3u, res[2].offset );
+	ASSERT_EQ( 1u, res[0].offset );
+	ASSERT_EQ( 2u, res[1].offset );
+	ASSERT_EQ( 3u, res[2].offset );
 
 	// ... d should return 0 since it do not exist in the lookup table...
-	EXPECT_EQ( 0u, res[3].offset );
+	ASSERT_EQ( 0u, res[3].offset );
+
+	return 0;
 }
 
-TEST( utf8, octet_3_bug_2 )
+TEST octet_3_bug_2()
 {
 	unsigned int test_cps[] = { 0xA0, 0x2026 };
 
@@ -276,17 +285,19 @@ TEST( utf8, octet_3_bug_2 )
 	utf8_lookup_result res[128];
 	size_t res_size = ARRAY_LENGTH( res );
 
-	EXPECT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, str, &str_iter, res, &res_size ) );
-	EXPECT_EQ( 3u, res_size );
+	ASSERT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, str, &str_iter, res, &res_size ) );
+	ASSERT_EQ( 3u, res_size );
 
-	EXPECT_EQ( 1u, res[0].offset );
-	EXPECT_EQ( 2u, res[1].offset );
+	ASSERT_EQ( 1u, res[0].offset );
+	ASSERT_EQ( 2u, res[1].offset );
 
 	// ... d should return 0 since it do not exist in the lookup table...
-	EXPECT_EQ( 0u, res[2].offset );
+	ASSERT_EQ( 0u, res[2].offset );
+
+	return 0;
 }
 
-TEST( utf8, octet_4 )
+TEST octet_4()
 {
 	unsigned int test_cps[] = { 0x10000, // octet 4 min
 								0x10801,
@@ -306,20 +317,22 @@ TEST( utf8, octet_4 )
 	utf8_lookup_result res[128];
 	size_t res_size = ARRAY_LENGTH( res );
 
-	EXPECT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, str, &str_iter, res, &res_size ) );
-	EXPECT_EQ( 5u, res_size );
+	ASSERT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, str, &str_iter, res, &res_size ) );
+	ASSERT_EQ( 5u, res_size );
 
-	EXPECT_EQ( 1u, res[0].offset );
-	EXPECT_EQ( 2u, res[1].offset );
-	EXPECT_EQ( 3u, res[2].offset );
-	EXPECT_EQ( 4u, res[3].offset );
+	ASSERT_EQ( 1u, res[0].offset );
+	ASSERT_EQ( 2u, res[1].offset );
+	ASSERT_EQ( 3u, res[2].offset );
+	ASSERT_EQ( 4u, res[3].offset );
 
 	// ... d should return 0 since it do not exist in the lookup table...
-	EXPECT_EQ( 0u, res[4].offset );
+	ASSERT_EQ( 0u, res[4].offset );
+
+	return 0;
 }
 
 
-TEST( utf8, octet_1_and_2 )
+TEST octet_1_and_2()
 {
 	// TODO: add chars from all pages
 	unsigned int test_cps[] = { 'a', 228 }; // aä
@@ -333,15 +346,17 @@ TEST( utf8, octet_1_and_2 )
 	utf8_lookup_result res[128];
 	size_t res_size = ARRAY_LENGTH( res );
 
-	EXPECT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, str, &str_iter, res, &res_size ) );
-	EXPECT_EQ( 2u, res_size );
+	ASSERT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, str, &str_iter, res, &res_size ) );
+	ASSERT_EQ( 2u, res_size );
 
-	EXPECT_EQ( 1u, res[0].offset );
-	EXPECT_EQ( 2u, res[1].offset );
+	ASSERT_EQ( 1u, res[0].offset );
+	ASSERT_EQ( 2u, res[1].offset );
+
+	return 0;
 }
 
 
-TEST( utf8, octet_1_and_3 )
+TEST octet_1_and_3()
 {
 	unsigned int test_cps[] = { '%', '6', 'B', 'X', 'a', 'b', 0x800, 0x1024, 0x1025, 0xFFFF };
 
@@ -359,26 +374,28 @@ TEST( utf8, octet_1_and_3 )
 	utf8_lookup_result res[128];
 	size_t res_size = ARRAY_LENGTH( res );
 
-	EXPECT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, str, &str_iter, res, &res_size ) );
-	EXPECT_EQ( 11u, res_size );
+	ASSERT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, str, &str_iter, res, &res_size ) );
+	ASSERT_EQ( 11u, res_size );
 
-	EXPECT_EQ(  3u, res[0].offset );
-	EXPECT_EQ(  5u, res[1].offset );
-	EXPECT_EQ(  4u, res[2].offset );
-	EXPECT_EQ(  6u, res[3].offset );
-	EXPECT_EQ(  2u, res[4].offset );
-	EXPECT_EQ(  1u, res[5].offset );
-	EXPECT_EQ(  7u, res[6].offset );
-	EXPECT_EQ(  8u, res[7].offset );
-	EXPECT_EQ(  9u, res[8].offset );
-	EXPECT_EQ( 10u, res[9].offset );
+	ASSERT_EQ(  3u, res[0].offset );
+	ASSERT_EQ(  5u, res[1].offset );
+	ASSERT_EQ(  4u, res[2].offset );
+	ASSERT_EQ(  6u, res[3].offset );
+	ASSERT_EQ(  2u, res[4].offset );
+	ASSERT_EQ(  1u, res[5].offset );
+	ASSERT_EQ(  7u, res[6].offset );
+	ASSERT_EQ(  8u, res[7].offset );
+	ASSERT_EQ(  9u, res[8].offset );
+	ASSERT_EQ( 10u, res[9].offset );
 
 	// ... d should return 0 since it do not exist in the lookup table...
-	EXPECT_EQ( 0u, res[10].offset );
+	ASSERT_EQ( 0u, res[10].offset );
+
+	return 0;
 }
 
 
-TEST( utf8, octet_2_and_3 )
+TEST octet_2_and_3()
 {
 	unsigned int test_cps[] = { 130,     // offset 1 = (130)
 								165,     // offset 2 = ¥
@@ -414,26 +431,28 @@ TEST( utf8, octet_2_and_3 )
 	utf8_lookup_result res[128];
 	size_t res_size = ARRAY_LENGTH( res );
 
-	EXPECT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, str, &str_iter, res, &res_size ) );
-	EXPECT_EQ( 12u, res_size );
+	ASSERT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, str, &str_iter, res, &res_size ) );
+	ASSERT_EQ( 12u, res_size );
 
-	EXPECT_EQ(  4u, res[0].offset );
-	EXPECT_EQ(  3u, res[1].offset );
-	EXPECT_EQ(  5u, res[2].offset );
-	EXPECT_EQ(  2u, res[3].offset );
-	EXPECT_EQ(  6u, res[4].offset );
-	EXPECT_EQ(  7u, res[5].offset );
-	EXPECT_EQ(  0u, res[6].offset ); // do not exist
-	EXPECT_EQ(  8u, res[7].offset );
-	EXPECT_EQ(  9u, res[8].offset );
-	EXPECT_EQ( 10u, res[9].offset );
-	EXPECT_EQ( 11u, res[10].offset );
+	ASSERT_EQ(  4u, res[0].offset );
+	ASSERT_EQ(  3u, res[1].offset );
+	ASSERT_EQ(  5u, res[2].offset );
+	ASSERT_EQ(  2u, res[3].offset );
+	ASSERT_EQ(  6u, res[4].offset );
+	ASSERT_EQ(  7u, res[5].offset );
+	ASSERT_EQ(  0u, res[6].offset ); // do not exist
+	ASSERT_EQ(  8u, res[7].offset );
+	ASSERT_EQ(  9u, res[8].offset );
+	ASSERT_EQ( 10u, res[9].offset );
+	ASSERT_EQ( 11u, res[10].offset );
 
 	// ... d should return 0 since it do not exist in the lookup table...
-	EXPECT_EQ( 0u, res[11].offset );
+	ASSERT_EQ( 0u, res[11].offset );
+
+	return 0;
 }
 
-TEST( utf8, octet_1_2_and_3 )
+TEST octet_1_2_and_3()
 {
 	unsigned int test_cps[] = { 'A', 'B', 'b', 'd',
 								130,     // offset 5 = (130)
@@ -472,33 +491,35 @@ TEST( utf8, octet_1_2_and_3 )
 	utf8_lookup_result res[128];
 	size_t res_size = ARRAY_LENGTH( res );
 
-	EXPECT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, str, &str_iter, res, &res_size ) );
-	EXPECT_EQ( 17u, res_size );
+	ASSERT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, str, &str_iter, res, &res_size ) );
+	ASSERT_EQ( 17u, res_size );
 
-	EXPECT_EQ(  4u, res[0].offset );
-	EXPECT_EQ(  3u, res[1].offset );
-	EXPECT_EQ(  2u, res[2].offset );
-	EXPECT_EQ(  1u, res[3].offset );
-	EXPECT_EQ(  0u, res[4].offset );
+	ASSERT_EQ(  4u, res[0].offset );
+	ASSERT_EQ(  3u, res[1].offset );
+	ASSERT_EQ(  2u, res[2].offset );
+	ASSERT_EQ(  1u, res[3].offset );
+	ASSERT_EQ(  0u, res[4].offset );
 
-	EXPECT_EQ(  8u, res[5].offset );
-	EXPECT_EQ(  7u, res[6].offset );
-	EXPECT_EQ(  9u, res[7].offset );
-	EXPECT_EQ(  6u, res[8].offset );
-	EXPECT_EQ( 10u, res[9].offset );
-	EXPECT_EQ( 11u, res[10].offset );
-	EXPECT_EQ(  0u, res[11].offset ); // do not exist
+	ASSERT_EQ(  8u, res[5].offset );
+	ASSERT_EQ(  7u, res[6].offset );
+	ASSERT_EQ(  9u, res[7].offset );
+	ASSERT_EQ(  6u, res[8].offset );
+	ASSERT_EQ( 10u, res[9].offset );
+	ASSERT_EQ( 11u, res[10].offset );
+	ASSERT_EQ(  0u, res[11].offset ); // do not exist
 
-	EXPECT_EQ( 12u, res[12].offset );
-	EXPECT_EQ( 13u, res[13].offset );
-	EXPECT_EQ( 14u, res[14].offset );
-	EXPECT_EQ( 15u, res[15].offset );
+	ASSERT_EQ( 12u, res[12].offset );
+	ASSERT_EQ( 13u, res[13].offset );
+	ASSERT_EQ( 14u, res[14].offset );
+	ASSERT_EQ( 15u, res[15].offset );
 
 	// ... d should return 0 since it do not exist in the lookup table...
-	EXPECT_EQ( 0u, res[16].offset );
+	ASSERT_EQ( 0u, res[16].offset );
+
+	return 0;
 }
 
-TEST( utf8, octet_1_2_3_and_4 )
+TEST octet_1_2_3_and_4()
 {
 	unsigned int test_cps[] = { 'A', 'B', 'b', 'd',
 								130,     // offset 5 = (130)
@@ -548,39 +569,60 @@ TEST( utf8, octet_1_2_3_and_4 )
 	utf8_lookup_result res[128];
 	size_t res_size = ARRAY_LENGTH( res );
 
-	EXPECT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, str, &str_iter, res, &res_size ) );
-	EXPECT_EQ( 22u, res_size );
+	ASSERT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, str, &str_iter, res, &res_size ) );
+	ASSERT_EQ( 22u, res_size );
 
-	EXPECT_EQ(  4u, res[0].offset );
-	EXPECT_EQ(  3u, res[1].offset );
-	EXPECT_EQ(  2u, res[2].offset );
-	EXPECT_EQ(  1u, res[3].offset );
-	EXPECT_EQ(  0u, res[4].offset ); // do not exist
+	ASSERT_EQ(  4u, res[0].offset );
+	ASSERT_EQ(  3u, res[1].offset );
+	ASSERT_EQ(  2u, res[2].offset );
+	ASSERT_EQ(  1u, res[3].offset );
+	ASSERT_EQ(  0u, res[4].offset ); // do not exist
 
-	EXPECT_EQ(  8u, res[5].offset );
-	EXPECT_EQ(  7u, res[6].offset );
-	EXPECT_EQ(  9u, res[7].offset );
-	EXPECT_EQ(  6u, res[8].offset );
-	EXPECT_EQ( 10u, res[9].offset );
-	EXPECT_EQ( 11u, res[10].offset );
-	EXPECT_EQ(  0u, res[11].offset ); // do not exist
+	ASSERT_EQ(  8u, res[5].offset );
+	ASSERT_EQ(  7u, res[6].offset );
+	ASSERT_EQ(  9u, res[7].offset );
+	ASSERT_EQ(  6u, res[8].offset );
+	ASSERT_EQ( 10u, res[9].offset );
+	ASSERT_EQ( 11u, res[10].offset );
+	ASSERT_EQ(  0u, res[11].offset ); // do not exist
 
-	EXPECT_EQ( 12u, res[12].offset );
-	EXPECT_EQ( 13u, res[13].offset );
-	EXPECT_EQ( 14u, res[14].offset );
-	EXPECT_EQ( 15u, res[15].offset );
-	EXPECT_EQ( 0u,  res[16].offset ); // do not exist
+	ASSERT_EQ( 12u, res[12].offset );
+	ASSERT_EQ( 13u, res[13].offset );
+	ASSERT_EQ( 14u, res[14].offset );
+	ASSERT_EQ( 15u, res[15].offset );
+	ASSERT_EQ( 0u,  res[16].offset ); // do not exist
 
-	EXPECT_EQ( 16u, res[17].offset );
-	EXPECT_EQ( 17u, res[18].offset );
-	EXPECT_EQ( 18u, res[19].offset );
-	EXPECT_EQ( 19u, res[20].offset );
-	EXPECT_EQ( 0u,  res[21].offset ); // do not exist
+	ASSERT_EQ( 16u, res[17].offset );
+	ASSERT_EQ( 17u, res[18].offset );
+	ASSERT_EQ( 18u, res[19].offset );
+	ASSERT_EQ( 19u, res[20].offset );
+	ASSERT_EQ( 0u,  res[21].offset ); // do not exist
+
+	return 0;
 }
 
-int main( int argc, char** argv )
+GREATEST_SUITE( utf8_lookup )
 {
-	::testing::InitGoogleTest(&argc, argv);
-	return RUN_ALL_TESTS();
+	RUN_TEST( octet_1_simple );
+	RUN_TEST( octet_1 );
+	RUN_TEST( octet_1_complete );
+	RUN_TEST( octet_2 );
+	RUN_TEST( octet_3 );
+	RUN_TEST( octet_3_bug );
+	RUN_TEST( octet_3_bug_2 );
+	RUN_TEST( octet_4 );
+	RUN_TEST( octet_1_and_2 );
+	RUN_TEST( octet_1_and_3 );
+	RUN_TEST( octet_2_and_3 );
+	RUN_TEST( octet_1_2_and_3 );
+	RUN_TEST( octet_1_2_3_and_4 );
 }
 
+GREATEST_MAIN_DEFS();
+
+int main( int argc, char **argv )
+{
+    GREATEST_MAIN_BEGIN();
+    RUN_SUITE( utf8_lookup );
+    GREATEST_MAIN_END();
+}

@@ -170,7 +170,6 @@ static void find_all_codepoints( const uint8_t* text, std::vector<unsigned int>&
 	const uint8_t* iter = text;
 	std::set<unsigned int> s;
 
-	int i = 0;
 	while( *iter )
 		s.insert( utf8_to_unicode_codepoint( &iter ) );
 
