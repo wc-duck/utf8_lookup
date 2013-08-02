@@ -1,7 +1,7 @@
 # UTF8-lookup
 
-A small drop-in library for converting utf8-strings into offsets into a table. Inspired by the HAMT-datastructure and
-designed to be used to translate string into a list of glyphs for rendernig.
+A small drop-in library for converting utf8-strings into offsets into a table. Inspired by the HAMT-data structure and designed to 
+be used to translate string into a list of glyphs for rendering.
 
 
 ## Properties
