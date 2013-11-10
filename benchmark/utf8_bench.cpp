@@ -326,7 +326,7 @@ int main( int argc, char** argv )
 					if( print )
 					{
 						printf("%d[%lu] = %u %u\n", loop, i, res1[i].offset, res2[i].offset );
-						char test[4] = { res1[i].pos[0], res1[i].pos[1], res1[i].pos[2], '\0' };
+						uint8_t test[4] = { res1[i].pos[0], res1[i].pos[1], res1[i].pos[2], '\0' };
 						printf("char %s\n", test);
 						print = false;
 					}

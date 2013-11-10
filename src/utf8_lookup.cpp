@@ -68,7 +68,7 @@
 */
 
 #if defined( __GNUC__ )
-#  define ALWAYSINLINE __attribute__((always_inline))
+#  define ALWAYSINLINE inline __attribute__((always_inline))
 #elif defined( _MSC_VER )
 #  define ALWAYSINLINE __forceinline
 #else
