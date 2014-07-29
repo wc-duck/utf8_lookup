@@ -174,7 +174,7 @@ utf8_lookup_error utf8_lookup_gen_table( void*         table,
     unsigned int* start = codepoints;
     unsigned int* end   = codepoints + num_codepoints;
     
-    unsigned int curr_elem = 0;
+    int curr_elem = 0;
     
     int octet_start[5] = { -1, -1, -1, -1, -1 };
     int last_octet = -1;
@@ -191,14 +191,14 @@ utf8_lookup_error utf8_lookup_gen_table( void*         table,
             if( octet == 0 )
             {
                 // we are in the static section of the table.
-                curr_elem = (unsigned int)(START_OFFSET[ curr_octet ] + ( gids[ octet ] >> 6  ) );
+                curr_elem = (int)(START_OFFSET[ curr_octet ] + ( gids[ octet ] >> 6  ) );
             }
             else
             {
                 // we are in the dynamic section of the table.
                 curr_elem = curr_elem < 6 ? 5 : curr_elem;
                 
-                if( ( memcmp( last_prev_gids, gids, ( octet ) * sizeof( unsigned int ) ) != 0 ) || last_octet != curr_octet )
+                if( ( memcmp( last_prev_gids, gids, (size_t)( octet ) * sizeof( unsigned int ) ) != 0 ) || last_octet != curr_octet )
                 {
                     ++curr_elem;
                     memcpy( last_prev_gids, gids, sizeof( gids ) );
@@ -246,7 +246,7 @@ utf8_lookup_error utf8_lookup_gen_table( void*         table,
     
     for( unsigned int octet = 0; octet < 4; ++octet )
     {
-		group_offset = octet_start[ octet + 1 ];
+		group_offset = (uint32_t)octet_start[ octet + 1 ];
 
         for( int j = octet_start[ octet ]; j < octet_start[ octet + 1 ]; ++j )
         {
@@ -299,7 +299,7 @@ utf8_lookup_error utf8_lookup_calc_table_size( size_t*       table_size,
                 // we are in the dynamic section of the table.
                 curr_elem = curr_elem < 6 ? 5 : curr_elem;
 
-                if( ( memcmp( last_prev_gids, gids, ( octet ) * sizeof( unsigned int ) ) != 0 ) || last_octet != curr_octet )
+                if( ( memcmp( last_prev_gids, gids, (size_t)( octet ) * sizeof( unsigned int ) ) != 0 ) || last_octet != curr_octet )
                 {
                     ++curr_elem;
                     memcpy( last_prev_gids, gids, sizeof( gids ) );
@@ -367,7 +367,7 @@ utf8_lookup_error utf8_lookup_perform( void*               lookup,
 		++res_out;
 	}
 
-	*res_size = (res_out - res);
+	*res_size = (size_t)(res_out - res);
 	*str_left = pos;
 	return UTF8_LOOKUP_ERROR_OK;
 }

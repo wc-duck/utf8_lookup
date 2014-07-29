@@ -58,7 +58,7 @@ struct test_me
 	uint32_t offset;
 };
 
-size_t pack_table( uint8_t* table, size_t tab_size, unsigned int* cps, size_t num_cps )
+int pack_table( uint8_t* table, size_t tab_size, unsigned int* cps, size_t num_cps )
 {
 	size_t size;
 	utf8_lookup_calc_table_size( &size, cps, (unsigned int)num_cps );
@@ -71,7 +71,7 @@ size_t pack_table( uint8_t* table, size_t tab_size, unsigned int* cps, size_t nu
 	ASSERT_EQ( 0xFE, table[ size ] );
 	ASSERT_EQ(  0x0, table[ size - 1 ] );
 
-	return size;
+	return 0;
 }
 
 TEST octet_1_simple()
@@ -129,7 +129,7 @@ TEST octet_1()
 TEST octet_1_complete()
 {
 	unsigned int* test_cps = (unsigned int*)malloc( 128 * sizeof(unsigned int) );
-	for( int i = 0; i < 127; ++i )
+	for( unsigned int i = 0; i < 127; ++i )
 		test_cps[i] = i + 1;
 
 	uint8_t table[ 256 ];

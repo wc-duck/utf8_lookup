@@ -98,17 +98,17 @@ static unsigned int utf8_to_unicode_codepoint( const uint8_t** str )
 	else if( fb[0] <= 0xDF )
 	{
 		*str = fb + 2;
-		return ( fb[1] & 0x3F ) | ( ( fb[0] & 0x1F ) << 6 );
+		return ( (unsigned int)fb[1] & 0x3F ) | ( ( (unsigned int)fb[0] & 0x1F ) << 6 );
 	}
 	else if( fb[0] <= 0xEF )
 	{
 		*str = fb + 3;
-		return ( fb[2] & 0x3F ) | ( ( fb[1] & 0x3F ) << 6 ) | ( ( fb[0] & 0xF )  << 12 );
+		return ( (unsigned int)fb[2] & 0x3F ) | ( ( (unsigned int)fb[1] & 0x3F ) << 6 ) | ( ( (unsigned int)fb[0] & 0xF )  << 12 );
 	}
 	else if ( fb[0] <= 0xF7 )
 	{
 		*str = fb + 4;
-		return ( fb[3] & 0x3F ) | ( ( fb[2] & 0x3F ) << 6 ) | ( ( fb[1] & 0x3F ) << 12 ) | ( ( fb[0] & 0x7 ) << 18 );
+		return ( (unsigned int)fb[3] & 0x3F ) | ( ( (unsigned int)fb[2] & 0x3F ) << 6 ) | ( ( (unsigned int)fb[1] & 0x3F ) << 12 ) | ( ( (unsigned int)fb[0] & 0x7 ) << 18 );
 	}
 
 	return 0;
