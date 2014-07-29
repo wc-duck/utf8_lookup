@@ -1,5 +1,8 @@
 # UTF8-lookup
 
+[![Build Status](https://travis-ci.org/wc-duck/utf8_lookup.svg?branch=master)](https://travis-ci.org/wc-duck/utf8_lookup)
+[![Build status](https://ci.appveyor.com/api/projects/status/o9c9qv5n6rh6w8gp)](https://ci.appveyor.com/project/wc-duck/utf8-lookup)
+
 A small drop-in library for converting utf8-strings into offsets into a table. Inspired by the HAMT-data structure and designed to 
 be used to translate string into a list of glyphs for rendering.
 
