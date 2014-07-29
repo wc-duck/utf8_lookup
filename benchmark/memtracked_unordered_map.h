@@ -68,7 +68,8 @@ namespace my_lib
            pointer ret = (pointer)(::operator new(num*sizeof(T)));
            return ret;
        }
-       void construct ( pointer p, const T& value) { new((void*)p)T(value); }
+       template< class U, class... Args >
+       void construct( U* p, Args&&... args ) { new((void*)p)T(args...); }
        void destroy   ( pointer p )                { p->~T(); }
        void deallocate( pointer p, size_type)      { ::operator delete((void*)p); }
 

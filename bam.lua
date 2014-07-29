@@ -32,7 +32,6 @@ end
 config   = "debug"
 
 local settings       = NewSettings()
-local gtest_settings = NewSettings()
 
 local output_path = PathJoin( BUILD_PATH, PathJoin( config, platform ) )
 local output_func = function(settings, path) return PathJoin(output_path, PathFilename(PathBase(path)) .. settings.config_ext) end

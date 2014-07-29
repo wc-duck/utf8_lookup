@@ -58,15 +58,15 @@ struct test_me
 	uint32_t offset;
 };
 
-size_t pack_table( uint8_t* table, size_t tab_size, unsigned int* cps, unsigned int num_cps )
+size_t pack_table( uint8_t* table, size_t tab_size, unsigned int* cps, size_t num_cps )
 {
 	size_t size;
-	utf8_lookup_calc_table_size( &size, cps, num_cps );
+	utf8_lookup_calc_table_size( &size, cps, (unsigned int)num_cps );
 
 	ASSERT( tab_size > size ); // safety-check
 	memset( table, 0xFE, tab_size );
 
-	utf8_lookup_error err = utf8_lookup_gen_table( table, size, cps, num_cps );
+	utf8_lookup_error err = utf8_lookup_gen_table( table, size, cps, (unsigned int)num_cps );
 	ASSERT_EQ( UTF8_LOOKUP_ERROR_OK, err );
 	ASSERT_EQ( 0xFE, table[ size ] );
 	ASSERT_EQ(  0x0, table[ size - 1 ] );
