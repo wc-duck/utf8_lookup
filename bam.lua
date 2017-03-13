@@ -89,7 +89,7 @@ function set_compiler( settings, config )
         SetDriversClang( settings )
         settings.cc.flags:Add( "-Wconversion", "-Wextra", "-Wall", "-Werror", "-Wstrict-aliasing=2" )
         if config == "release" then
-            settings.cc.flags:Add( "-O2" )
+            settings.cc.flags:Add( "-O2")
         end
     end
 end

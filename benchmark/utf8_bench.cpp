@@ -28,8 +28,6 @@
 
 #include <utf8_lookup/utf8_lookup.h>
 
-#include "memtracked_unordered_map.h"
-
 #include <time.h>
 #include <stdlib.h>
 #include <string.h>
@@ -37,8 +35,69 @@
 #include <set>
 #include <map>
 #include <vector>
+#include <unordered_map>
 #include <algorithm>
-#include <iterator>
+
+size_t g_num_alloc = 0;
+size_t g_num_free  = 0;
+size_t g_num_bytes = 0;
+
+template <class T>
+class utf8_bench_std_alloc
+{
+	public:
+	// type definitions
+	typedef T              value_type;
+	typedef T*             pointer;
+	typedef const T*       const_pointer;
+	typedef T&             reference;
+	typedef const T&       const_reference;
+	typedef std::size_t    size_type;
+	typedef std::ptrdiff_t difference_type;
+
+	template <class U> struct rebind { typedef utf8_bench_std_alloc<U> other; };
+
+	pointer       address( reference       value ) const { return &value; }
+	const_pointer address( const_reference value ) const { return &value; }
+
+	utf8_bench_std_alloc() throw() {}
+	utf8_bench_std_alloc( const utf8_bench_std_alloc& ) throw() {}
+	template <class U> utf8_bench_std_alloc ( const utf8_bench_std_alloc<U>& ) throw() {}
+	~utf8_bench_std_alloc() throw() {}
+
+	size_type max_size() const throw() { return std::numeric_limits<std::size_t>::max() / sizeof(T); }
+	pointer allocate( size_type num, const void* = 0 )
+	{
+		++g_num_alloc;
+		g_num_bytes += num * sizeof(T);
+		return (pointer)(::operator new(num*sizeof(T)));
+	}
+	template< class U, class... Args >
+	void construct( U* p, Args&&... args )      { new((void*)p)T(args...); }
+	void destroy   ( pointer p )                { p->~T(); }
+	void deallocate( pointer p, size_type num)
+	{
+		++g_num_free;
+		g_num_bytes -= num * sizeof(T);
+		::operator delete((void*)p);
+	}
+
+};
+
+void reset_tracking() { g_num_alloc = 0; g_num_free = 0; g_num_bytes = 0; }
+
+template <class T1, class T2> bool operator== (const utf8_bench_std_alloc<T1>&, const utf8_bench_std_alloc<T2>&) throw() { return true; }
+template <class T1, class T2> bool operator!= (const utf8_bench_std_alloc<T1>&, const utf8_bench_std_alloc<T2>&) throw() { return false; }
+
+typedef std::map< unsigned int,
+				  unsigned int,
+				  std::less<unsigned int>,
+				  utf8_bench_std_alloc< std::pair<const unsigned int, unsigned int> > > tracked_map;
+typedef std::unordered_map< unsigned int,
+							unsigned int,
+							std::hash<unsigned int>,
+							std::equal_to<unsigned int>,
+							utf8_bench_std_alloc< std::pair<const unsigned int, unsigned int> > > tracked_unordered_map;
 
 #if defined(__GNUC__)
 	inline uint64_t cpu_tick()
@@ -136,6 +195,29 @@ utf8_lookup_error utf8_lookup_perform_std_cmp( tracked_unordered_map& compare_ma
 	return UTF8_LOOKUP_ERROR_OK;
 }
 
+utf8_lookup_error utf8_lookup_perform_std_cmp( tracked_map& compare_map, const uint8_t* str, const uint8_t** str_left, utf8_lookup_result* res, size_t* res_size )
+{
+	utf8_lookup_result* res_out = res;
+	utf8_lookup_result* res_end = res + *res_size;
+
+	const uint8_t* pos = str;
+
+	while( *pos && res_out != res_end )
+	{
+		res_out->pos    = pos;
+		int code_point = utf8_to_unicode_codepoint( &pos );
+
+		tracked_map::iterator it = compare_map.find( code_point );
+		res_out->offset = it == compare_map.end() ? 0 : it->second;
+		++res_out;
+	}
+
+	*res_size = (int)(res_out - res);
+	*str_left = pos;
+	return UTF8_LOOKUP_ERROR_OK;
+}
+
+
 static uint8_t* load_file( const char* file_name, size_t* file_size )
 {
 	FILE* f = fopen( file_name, "rb" );
@@ -177,34 +259,52 @@ static void find_all_codepoints( const uint8_t* text, std::vector<unsigned int>&
 	std::copy( s.begin(), s.end(), std::back_inserter(cps) );
 	std::sort( cps.begin(), cps.end() );
 
-	printf( "num codepoints in file %lu\n", cps.size() );
 
 	for( size_t i = 0; i < cps.size(); ++i )
 		++count[ codepoint_to_octet( cps[i] ) ];
 
-	printf( "octet 1: %u\n", count[0] );
-	printf( "octet 2: %u\n", count[1] );
-	printf( "octet 3: %u\n", count[2] );
-	printf( "octet 4: %u\n", count[3] );
+	printf( "num codepoints in file %lu\n", cps.size() );
+	printf( "octet: %7d %7d %7d %7d\n", 1, 2, 3, 4);
+	printf( "       %7u %7u %7u %7u\n\n", count[0], count[1], count[2], count[3]);
 }
 
-void build_compare_map( std::vector<unsigned int>& cps, tracked_unordered_map& output )
+struct test_case
 {
+	const char* name;
+	uint64_t    runtime;
+	size_t      allocs;
+	size_t      frees;
+	size_t      memused;
+};
+
+void build_compare_map( std::vector<unsigned int>& cps, tracked_map& output, test_case* test )
+{
+	reset_tracking();
+	for( size_t i = 0; i < cps.size(); ++i )
+		output.insert( std::make_pair( cps[i], (unsigned int)i + 1 ) );
+
+	test->allocs  = g_num_alloc;
+	test->frees   = g_num_free;
+	test->memused = g_num_bytes;
+	reset_tracking();
+}
+
+void build_compare_map( std::vector<unsigned int>& cps, tracked_unordered_map& output, test_case* test )
+{
+	reset_tracking();
 	for( size_t i = 0; i < cps.size(); ++i )
 		output[ cps[i] ] = (unsigned int)i + 1;
-
-	printf( "unordered_map - allocs: %lu  mem: %f kb\n", my_lib::g_num_alloc, (float)my_lib::g_num_bytes/1024.0f );
+	test->allocs  = g_num_alloc;
+	test->frees   = g_num_free;
+	test->memused = g_num_bytes;
+	reset_tracking();
 }
 
-void* build_utf8_lookup_map( std::vector<unsigned int>& cps )
+static void* build_utf8_lookup_map( std::vector<unsigned int>& cps, test_case* test )
 {
-	size_t size;
-	utf8_lookup_calc_table_size( &size, &cps[0], (unsigned int)cps.size() );
-	void* table = malloc( size );
-	utf8_lookup_gen_table( table, size, &cps[0], (unsigned int)cps.size() );
-
-	printf( "utf8_lookup   - allocs: 1    mem: %f kb\n", (float)size/1024.0f );
-
+	utf8_lookup_calc_table_size( &test->memused, &cps[0], (unsigned int)cps.size() );
+	void* table = malloc( test->memused );
+	utf8_lookup_gen_table( table, test->memused, &cps[0], (unsigned int)cps.size() );
 	return table;
 }
 
@@ -225,6 +325,7 @@ int main( int argc, char** argv )
 	}
 
 	uint8_t* text = text_data;
+
 	// skip BOM
 	if( text_data[0] == 0xEF && text_data[1] == 0xBB && text_data[2] == 0xBF )
 	{
@@ -232,19 +333,26 @@ int main( int argc, char** argv )
 		text = &text_data[3];
 	}
 
+	test_case test_cases[] = {
+		{ "utf8_lookup", 0 ,0, 0, 0 },
+		{ "std::map", 0 ,0, 0, 0 },
+		{ "std::unordered_map", 0 ,0, 0, 0 }
+	};
+
 	std::vector<unsigned int> cps;
 	find_all_codepoints( text, cps );
 
-	tracked_unordered_map compare_map;
-	build_compare_map( cps, compare_map );
-
 	// build lookup map
-	void* table = build_utf8_lookup_map( cps );
+	void* table = build_utf8_lookup_map( cps, &test_cases[0] );
 
+	tracked_map compare_map;
+	tracked_unordered_map compare_unordered_map;
+	build_compare_map( cps, compare_map, &test_cases[1] );
+	build_compare_map( cps, compare_unordered_map, &test_cases[2] );
 
 	{
-		utf8_lookup_result res1[256];
-		size_t res_size = 256;
+		utf8_lookup_result res[256];
+		size_t res_size = ARRAY_LENGTH(res);
 
 		uint64_t start = cpu_tick();
 
@@ -252,16 +360,14 @@ int main( int argc, char** argv )
 		{
 			const uint8_t* str_iter = text;
 			while( *str_iter )
-				utf8_lookup_perform_std_cmp( compare_map, str_iter, &str_iter, res1, &res_size );
+				utf8_lookup_perform( table, str_iter, &str_iter, res, &res_size );
 		}
-
-		float time = cpu_ticks_to_sec( cpu_tick() - start );
-		printf( "unordered_map time: %f sec, %f GB/sec\n", time, ( (float)file_size / ( 1024 * 1024 ) ) / time );
+		test_cases[0].runtime = cpu_tick() - start;
 	}
 
 	{
-		utf8_lookup_result res2[256];
-		size_t res_size = 256;
+		utf8_lookup_result res[256];
+		size_t res_size = ARRAY_LENGTH(res);
 
 		uint64_t start = cpu_tick();
 
@@ -269,11 +375,37 @@ int main( int argc, char** argv )
 		{
 			const uint8_t* str_iter = text;
 			while( *str_iter )
-				utf8_lookup_perform( table, str_iter, &str_iter, res2, &res_size );
+				utf8_lookup_perform_std_cmp( compare_map, str_iter, &str_iter, res, &res_size );
 		}
+		test_cases[1].runtime = cpu_tick() - start;
+	}
 
-		float time = cpu_ticks_to_sec( cpu_tick() - start );
-		printf( "utf8_lookup time:   %f sec, %f GB/sec\n", time, ( (float)file_size / ( 1024 * 1024 ) ) / time );
+	{
+		utf8_lookup_result res[256];
+		size_t res_size = ARRAY_LENGTH(res);
+
+		uint64_t start = cpu_tick();
+
+		for( int i = 0; i < 100; ++i )
+		{
+			const uint8_t* str_iter = text;
+			while( *str_iter )
+				utf8_lookup_perform_std_cmp( compare_unordered_map, str_iter, &str_iter, res, &res_size );
+		}
+		test_cases[2].runtime = cpu_tick() - start;
+	}
+
+	printf("%-20s%-20s%-20s%-20s%-20s%-20s%-20s\n", "name", "allocs", "frees", "memused (kb)", "bits/codepoint", "time (sec)", "GB/sec");
+	for( size_t i = 0; i < ARRAY_LENGTH(test_cases); ++i )
+	{
+		float time = cpu_ticks_to_sec( test_cases[i].runtime );
+		printf("%-20s%-20zu%-20zu%-20f%-20f%-20f%-20f\n", test_cases[i].name,
+										  	   		 	  test_cases[i].allocs,
+													 	  test_cases[i].frees,
+										  	   		 	  (float)test_cases[i].memused / 1024.0f,
+													 	  (float)(test_cases[i].memused * 8) / (float)cps.size(),
+											   		 	  time,
+											   		 	  ( (float)file_size / ( 1024 * 1024 ) ) / time);
 	}
 
 	// check output!
@@ -296,7 +428,7 @@ int main( int argc, char** argv )
 		bool print = true;
 		while( *str_iter1 && *str_iter2 )
 		{
-			utf8_lookup_perform_std_cmp( compare_map, str_iter1, &str_iter1, res1, &res_size1 );
+			utf8_lookup_perform_std_cmp( compare_unordered_map, str_iter1, &str_iter1, res1, &res_size1 );
 			utf8_lookup_perform( table, str_iter2, &str_iter2, res2, &res_size2 );
 
 			if( str_iter1 != str_iter2 )
