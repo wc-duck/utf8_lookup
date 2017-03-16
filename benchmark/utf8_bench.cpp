@@ -305,23 +305,21 @@ static void* build_utf8_lookup_map( std::vector<unsigned int>& cps, test_case* t
 	utf8_lookup_calc_table_size( &test->memused, &cps[0], (unsigned int)cps.size() );
 	void* table = malloc( test->memused );
 	utf8_lookup_gen_table( table, test->memused, &cps[0], (unsigned int)cps.size() );
+	test->allocs = 1;
+	test->frees  = 0;
 	return table;
 }
 
-int main( int argc, char** argv )
+static void run_test_case(const char* test_text_file)
 {
-	if( argc < 1 )
-	{
-		printf( "bad input parameters!\n" );
-		return 1;
-	}
+	printf("\ntest text: %s\n", test_text_file);
 
 	size_t file_size;
-	uint8_t* text_data = load_file( argv[1], &file_size );
+	uint8_t* text_data = load_file( test_text_file, &file_size );
 	if( text_data == 0x0 )
 	{
-		printf( "couldn't load file %s\n", argv[1] );
-		return 1;
+		printf( "couldn't load file %s\n", test_text_file );
+		return;
 	}
 
 	uint8_t* text = text_data;
@@ -329,7 +327,6 @@ int main( int argc, char** argv )
 	// skip BOM
 	if( text_data[0] == 0xEF && text_data[1] == 0xBB && text_data[2] == 0xBF )
 	{
-		printf("has bom!\n");
 		text = &text_data[3];
 	}
 
@@ -477,5 +474,18 @@ int main( int argc, char** argv )
 
 	free( text_data );
 	free( table );
+}
+
+int main( int argc, char** argv )
+{
+	if( argc < 1 )
+	{
+		printf( "bad input parameters!\n" );
+		return 1;
+	}
+
+	for( int i = 1; i < argc; ++i )
+		run_test_case(argv[i]);
+
 	return 0;
 }
