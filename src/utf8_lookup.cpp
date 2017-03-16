@@ -156,7 +156,7 @@ struct lookup_elem
 	uint32_t offset;
 };
 
-static const uint64_t START_OFFSET[4] = { 1, 3, 4, 5 };
+static const uint64_t START_OFFSET[4] = { 0, 2, 3, 4 };
 
 #include <stdio.h>
 
