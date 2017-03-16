@@ -150,15 +150,10 @@ static int utf8_split_to_bytes( unsigned int cp, unsigned int* bytes )
 	return -1;
 }
 
-struct lookup_elem
-{
-	uint64_t avail;
-	uint32_t offset;
-};
+// TODO: remember and document why I need an empty element at index 0, why can START_OFFSET:s be { 1, 3, 4, 5 } ???
 
-static const uint64_t START_OFFSET[4] = { 0, 2, 3, 4 };
-
-#include <stdio.h>
+// table telling where to start a lookup-traversal depending on how many bytes the current utf8-char is.
+static const uint64_t START_OFFSET[4] = { 1, 3, 4, 5 };
 
 utf8_lookup_error utf8_lookup_gen_table( void*         table,
 					 	 	 	 	 	 size_t        table_size,
@@ -167,7 +162,16 @@ utf8_lookup_error utf8_lookup_gen_table( void*         table,
 {
     memset( table, 0x0, table_size );
     
-    lookup_elem* out_table = (lookup_elem*)table;
+    size_t calc_table_size;
+    utf8_lookup_calc_table_size( &calc_table_size, codepoints, num_codepoints );
+
+    if( calc_table_size > table_size )
+        return UTF8_LOOKUP_ERROR_BUFFER_TO_SMALL;
+
+    size_t items = ( table_size - sizeof(uint64_t) ) / ( sizeof( uint64_t ) + sizeof(uint16_t) );
+
+    uint64_t* avail_bits = (uint64_t*)((uint8_t*)table + sizeof(uint64_t));
+    uint16_t* offsets    = (uint16_t*)((uint8_t*)avail_bits + sizeof(uint64_t) * items);
 
     // loop all codepoints
     
@@ -209,23 +213,23 @@ utf8_lookup_error utf8_lookup_gen_table( void*         table,
 
             if( octet_start[ octet ] == -1 )
                 octet_start[ octet ] = curr_elem;
-            
+
             if( octet == curr_octet )
             {
                 // advance start, we will not do anything with this char again.
                 ++start;
                 
                 // mark element as chars
-                out_table[ curr_elem ].offset = 1;
+                offsets[ curr_elem ] = 1;
             }
             else
             {
                 // mark element as group
-                out_table[ curr_elem ].offset = 2;
+                offsets[ curr_elem ] = 2;
             }
 
 			// set the avail bit
-			out_table[ curr_elem ].avail |= (uint64_t)1 << ( gids[ octet ] & 63 );
+			avail_bits[ curr_elem ] |= (uint64_t)1 << ( gids[ octet ] & 63 );
         }
     }
 
@@ -250,20 +254,22 @@ utf8_lookup_error utf8_lookup_gen_table( void*         table,
 
         for( int j = octet_start[ octet ]; j < octet_start[ octet + 1 ]; ++j )
         {
-            if( out_table[ j ].offset == 1 )
+            if( offsets[ j ] == 1 )
             {
                 // writing a char
-                out_table[ j ].offset = char_offset;
-                char_offset += (uint32_t)bit_pop_cnt( out_table[ j ].avail );
+                offsets[ j ] = (uint16_t)char_offset;
+                char_offset += (uint32_t)bit_pop_cnt( avail_bits[ j ] );
             }
-            else if( out_table[ j ].offset == 2 )
+            else if( offsets[ j ] == 2 )
             {
                 // writing a group
-                out_table[ j ].offset = group_offset;
-                group_offset += (uint32_t)bit_pop_cnt( out_table[ j ].avail );
+                offsets[ j ] = (uint16_t)group_offset;
+                group_offset += (uint32_t)bit_pop_cnt( avail_bits[ j ] );
             }
         }
     }
+
+    *((uint64_t*)table) = curr_elem + 2;
 
 	return UTF8_LOOKUP_ERROR_OK;
 }
@@ -314,7 +320,14 @@ utf8_lookup_error utf8_lookup_calc_table_size( size_t*       table_size,
         }
     }
 
-    *table_size = ( curr_elem + 2 ) * sizeof( lookup_elem );
+    // table layout:
+    // uint64_t              - item_count, kept as uint64_t to get valid alignment for the following arrays.
+    // uint64_t[item_count]  - availabillity bits.
+    // uint16_t[item_count]  - group-offsets.
+    unsigned int item_count = curr_elem + 2; // TODO: remember why I need the +2 here and document. ( unittests fail without it )
+    *table_size = sizeof(uint64_t) + 
+                  ( item_count * sizeof(uint64_t) ) +
+                  ( item_count * sizeof(uint16_t) );
 	return UTF8_LOOKUP_ERROR_OK;
 }
 
@@ -329,12 +342,14 @@ utf8_lookup_error utf8_lookup_perform( void*               lookup,
 
 	const uint8_t* pos = str;
 
+    uint64_t  items      = *((uint64_t*)lookup);
+    uint64_t* avail_bits = (uint64_t*)((uint8_t*)lookup + sizeof(uint64_t));
+    uint16_t* offsets    = (uint16_t*)((uint8_t*)avail_bits + sizeof(uint64_t) * items);
+
 	while( *pos && res_out != res_end )
 	{
 		uint8_t first_byte = *pos;
 		res_out->pos = pos;
-
-		lookup_elem* lookup_elems = (lookup_elem*)lookup;
 
 		int octet = utf8_num_trailing_bytes( first_byte );
 
@@ -355,10 +370,10 @@ utf8_lookup_error utf8_lookup_perform( void*               lookup,
 
 			++pos;
 
-			lookup_elem* elem     = lookup_elems + group + curr_offset;
-			uint64_t items_before = bit_pop_cnt( elem->avail & ( check_bit - (uint64_t)1 ) );
+			uint64_t index = group + curr_offset;
+			uint64_t items_before = bit_pop_cnt( avail_bits[index] & ( check_bit - (uint64_t)1 ) );
 
-			curr_offset = ( elem->avail & check_bit ) > (uint64_t)0 ? elem->offset + items_before : 0x0;
+			curr_offset = ( avail_bits[index] & check_bit ) > (uint64_t)0 ? offsets[index] + items_before : 0x0;
 		}
 
 		// curr_offset is now either 0 for not found or offset in glyphs-table

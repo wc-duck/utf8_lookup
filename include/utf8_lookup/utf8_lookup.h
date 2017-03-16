@@ -50,7 +50,8 @@ struct utf8_lookup_result
  */
 enum utf8_lookup_error
 {
-	UTF8_LOOKUP_ERROR_OK
+	UTF8_LOOKUP_ERROR_OK,
+	UTF8_LOOKUP_ERROR_BUFFER_TO_SMALL
 };
 
 /**
