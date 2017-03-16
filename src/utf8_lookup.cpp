@@ -88,28 +88,6 @@ static ALWAYSINLINE uint64_t bit_pop_cnt( uint64_t val )
 #endif
 }
 
-static ALWAYSINLINE int utf8_num_trailing_bytes( int first_byte )
-{
-	static const int UTF8_TRAILING_BYTES_TABLE[256] = {
-		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-		1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-		2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2, 3,3,3,3,3,3,3,3,4,4,4,4,5,5,5,5
-	};
-
-	return UTF8_TRAILING_BYTES_TABLE[ first_byte ];
-
-	/*
-	// Second implementation, might be faster if pop_count-instruction is present.
-	static const int OCTET_LOOKUP[] = { 0, 1337, 1, 2 }; // 1337 is an error ;)
-	return OCTET_LOOKUP[ bit_leading_one_count( first_byte ) ];
-	*/
-}
-
 static int utf8_split_to_bytes( unsigned int cp, unsigned int* bytes )
 {
 	if ( cp <= 127 )
@@ -150,9 +128,15 @@ static int utf8_split_to_bytes( unsigned int cp, unsigned int* bytes )
 	return -1;
 }
 
-// TODO: remember and document why I need an empty element at index 0, why can START_OFFSET:s be { 1, 3, 4, 5 } ???
-
 // table telling where to start a lookup-traversal depending on how many bytes the current utf8-char is.
+// first item in the avail_bits is always 0, this is used as "not found". If sometime in the lookup-loop
+// a char is determined that it do not exist, i.e. a bit in the avail_bits-array is not set, the current
+// lookup index will be set to 0 and reference this empty bitset for the rest of the lookup.
+//
+// This was done under the asumption that you mostly do lookups that "hit" the table, i.e. you will need
+// to do all loop-iterations so instead of branching, just make the code always loop all iterations.
+//
+// if this is a gain is something to actually be tested.
 static const uint64_t START_OFFSET[4] = { 1, 3, 4, 5 };
 
 utf8_lookup_error utf8_lookup_gen_table( void*         table,
@@ -346,12 +330,28 @@ utf8_lookup_error utf8_lookup_perform( void*               lookup,
     uint64_t* avail_bits = (uint64_t*)((uint8_t*)lookup + sizeof(uint64_t));
     uint16_t* offsets    = (uint16_t*)((uint8_t*)avail_bits + sizeof(uint64_t) * items);
 
+	static const int UTF8_TRAILING_BYTES_TABLE[256] = {
+		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+		1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+		2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2, 3,3,3,3,3,3,3,3,4,4,4,4,5,5,5,5
+	};
+	/*
+	// Second implementation, might be faster if pop_count-instruction is present.
+	static const int OCTET_LOOKUP[] = { 0, 1337, 1, 2 }; // 1337 is an error ;)
+	return OCTET_LOOKUP[ bit_leading_one_count( first_byte ) ];
+	*/
+
 	while( *pos && res_out != res_end )
 	{
 		uint8_t first_byte = *pos;
 		res_out->pos = pos;
 
-		int octet = utf8_num_trailing_bytes( first_byte );
+		int octet = UTF8_TRAILING_BYTES_TABLE[ first_byte ];
 
 		static const uint64_t GROUP_MASK[4]   = { 127, 63, 63, 63 };
 		static const uint64_t GID_MASK[4]     = {  63, 31, 15,  7 };
@@ -366,13 +366,24 @@ utf8_lookup_error utf8_lookup_perform( void*               lookup,
 			uint64_t gid       = (uint64_t)(*pos & gid_mask);
 			uint64_t check_bit = (uint64_t)1 << gid;
 
+			// gid mask will always be 0b111111 i.e. the lowest 6 bit set on all loops except
+			// the first one. This is due to how utf8 is structured, see table at the top of
+			// the file.
 			gid_mask = 63;
 
 			++pos;
 
+			// index in avail_bits and corresponding offsets that we are currently working in.
 			uint64_t index = group + curr_offset;
+
+			// how many bits are set "before" the current element in this group? this is used
+			// to calculate the next item in the lookup.
 			uint64_t items_before = bit_pop_cnt( avail_bits[index] & ( check_bit - (uint64_t)1 ) );
 
+			// select the next offset in the avail_bits-array to check or if this is the last iteration this
+			// will be the actual result.
+			// note: if the lookup is a miss, i.e. bit is not set, point curr_offset to 0 that is a bitfield
+			//       that is always 0 and offsets[0] == 0 to just keep on "missing"
 			curr_offset = ( avail_bits[index] & check_bit ) > (uint64_t)0 ? offsets[index] + items_before : 0x0;
 		}
 
