@@ -392,7 +392,7 @@ static void run_test_case(const char* test_text_file)
 		test_cases[2].runtime = cpu_tick() - start;
 	}
 
-	printf("%-20s%-20s%-20s%-20s%-20s%-20s%-20s\n", "name", "allocs", "frees", "memused (kb)", "bits/codepoint", "time (sec)", "GB/sec");
+	printf("%-20s%-20s%-20s%-20s%-20s%-20s%-20s\n", "name", "allocs", "frees", "memused (kb)", "bytes/codepoint", "time (sec)", "GB/sec");
 	for( size_t i = 0; i < ARRAY_LENGTH(test_cases); ++i )
 	{
 		float time = cpu_ticks_to_sec( test_cases[i].runtime );
@@ -400,7 +400,7 @@ static void run_test_case(const char* test_text_file)
 										  	   		 	  test_cases[i].allocs,
 													 	  test_cases[i].frees,
 										  	   		 	  (float)test_cases[i].memused / 1024.0f,
-													 	  (float)(test_cases[i].memused * 8) / (float)cps.size(),
+													 	  (float)(test_cases[i].memused) / (float)cps.size(),
 											   		 	  time,
 											   		 	  ( (float)file_size / ( 1024 * 1024 ) ) / time);
 	}
