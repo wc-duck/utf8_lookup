@@ -87,19 +87,17 @@ utf8_lookup_error utf8_lookup_gen_table( void*         table,
  *
  * @param table memory area containing data packed with utf8_lookup_gen_table.
  * @param str string to make lookup in.
- * @param str_left pointer that will point to start of what is left of string after parse.
  * @param res pointer to buffer where to return result.
  * @param res_size size of res.
  *
- * @return UTF8_LOOKUP_ERROR_OK on success.
+ * @return pointer into str to start of what is left of string after parse.
  *
  * @note str is assumed to be correct utf8, no error-checking is performed.
  */
-utf8_lookup_error utf8_lookup_perform( void*               table,
-                                       const uint8_t*      str,
-                                       const uint8_t**     str_left,
-                                       utf8_lookup_result* res,
-                                       size_t*             res_size );
+const uint8_t* utf8_lookup_perform( void*               table,
+                                    const uint8_t*      str,
+                                    utf8_lookup_result* res,
+                                    size_t*             res_size );
 
 #ifdef __cplusplus
 }

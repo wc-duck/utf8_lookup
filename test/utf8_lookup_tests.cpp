@@ -82,12 +82,12 @@ TEST octet_1_simple()
 	pack_table( table, sizeof(table), test_cps, ARRAY_LENGTH(test_cps) );
 
 	const uint8_t* str = (const uint8_t*)"%d";
-	const uint8_t* str_iter = str;
 
 	utf8_lookup_result res[128];
 	size_t res_size = ARRAY_LENGTH( res );
 
-	ASSERT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, str, &str_iter, res, &res_size ) );
+	str = utf8_lookup_perform( table, str, res, &res_size );
+
 	ASSERT_EQ( 2u, res_size );
 
 	ASSERT_EQ( 2u, res[0].offset );
@@ -105,12 +105,12 @@ TEST octet_1()
 	pack_table( table, sizeof(table), test_cps, ARRAY_LENGTH(test_cps) );
 
 	const uint8_t* str = (const uint8_t*)"BX%6abd";
-	const uint8_t* str_iter = str;
 
 	utf8_lookup_result res[128];
 	size_t res_size = ARRAY_LENGTH( res );
 
-	ASSERT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, str, &str_iter, res, &res_size ) );
+	str = utf8_lookup_perform( table, str, res, &res_size );
+
 	ASSERT_EQ( 7u, res_size );
 
 	ASSERT_EQ( 3u, res[0].offset );
@@ -141,9 +141,8 @@ TEST octet_1_complete()
 
 	utf8_lookup_result res[256];
 	size_t res_size = ARRAY_LENGTH( res );
-	const uint8_t* str_iter = str;
+	utf8_lookup_perform( table, str, res, &res_size );
 
-	ASSERT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, str, &str_iter, res, &res_size ) );
 	ASSERT_EQ( 127u, res_size );
 
 	for( unsigned int i = 0; i < 127; ++i )
@@ -153,9 +152,8 @@ TEST octet_1_complete()
 												 "\xc3\xa4"   // ä
 												 "\xc3\xb6"   // ö
 												 "\xc2\xa5";  // ¥;
-	const uint8_t* str_iter2 = missing_str;
 	// lookup non-existing!
-	ASSERT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, missing_str, &str_iter2, res, &res_size ) );
+	missing_str = utf8_lookup_perform( table, missing_str, res, &res_size );
 	ASSERT_EQ( 4u, res_size );
 
 	ASSERT_EQ( 0u, res[0].offset );
@@ -190,12 +188,11 @@ TEST octet_2()
 									     "\xdf\x8f"
 									     "\xdf\xbf"  // max octet 2
 									     "\xc2\xa7"; // § ... do not exist in table ...
-	const uint8_t* str_iter = str;
-
 	utf8_lookup_result res[128];
 	size_t res_size = ARRAY_LENGTH( res );
 
-	ASSERT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, str, &str_iter, res, &res_size ) );
+	str = utf8_lookup_perform( table, str, res, &res_size );
+
 	ASSERT_EQ( 7u, res_size );
 
 	ASSERT_EQ( 4u, res[0].offset );
@@ -222,12 +219,11 @@ TEST octet_3()
 									     "\xe1\x80\xa5"  // 0x1025
 									     "\xef\xbf\xbf"  // 0xFFFF
 									     "\xe2\x81\x88"; // ... do not exist in table ...
-	const uint8_t* str_iter = str;
-
 	utf8_lookup_result res[128];
 	size_t res_size = ARRAY_LENGTH( res );
 
-	ASSERT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, str, &str_iter, res, &res_size ) );
+	str = utf8_lookup_perform( table, str, res, &res_size );
+
 	ASSERT_EQ( 5u, res_size );
 
 	ASSERT_EQ( 1u, res[0].offset );
@@ -252,12 +248,12 @@ TEST octet_3_bug()
 										 "\xe3\x80\x8f"  // 0x300F
 										 "\xe7\xac\xac"  // 0x7B2C
 									     "\xe2\x81\x88"; // ... do not exist in table ...
-	const uint8_t* str_iter = str;
 
 	utf8_lookup_result res[128];
 	size_t res_size = ARRAY_LENGTH( res );
 
-	ASSERT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, str, &str_iter, res, &res_size ) );
+	str = utf8_lookup_perform( table, str, res, &res_size );
+
 	ASSERT_EQ( 4u, res_size );
 
 	ASSERT_EQ( 1u, res[0].offset );
@@ -280,12 +276,12 @@ TEST octet_3_bug_2()
 	const uint8_t* str = (const uint8_t*)"\xc2\xa0"
 									     "\xe2\x80\xa6"  // 0x2026
 									     "\xe2\x81\x88"; // ... do not exist in table ...
-	const uint8_t* str_iter = str;
 
 	utf8_lookup_result res[128];
 	size_t res_size = ARRAY_LENGTH( res );
 
-	ASSERT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, str, &str_iter, res, &res_size ) );
+	str = utf8_lookup_perform( table, str, res, &res_size );
+
 	ASSERT_EQ( 3u, res_size );
 
 	ASSERT_EQ( 1u, res[0].offset );
@@ -312,12 +308,12 @@ TEST octet_4()
 									     "\xf0\x90\xa0\x82"  // 0x10802
 									     "\xf4\x8f\xbf\xbf"  // 0x10FFF
 									     "\xf0\x90\xa0\x83"; // ... do not exist in table ...
-	const uint8_t* str_iter = str;
 
 	utf8_lookup_result res[128];
 	size_t res_size = ARRAY_LENGTH( res );
 
-	ASSERT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, str, &str_iter, res, &res_size ) );
+	str = utf8_lookup_perform( table, str, res, &res_size );
+
 	ASSERT_EQ( 5u, res_size );
 
 	ASSERT_EQ( 1u, res[0].offset );
@@ -341,12 +337,11 @@ TEST octet_1_and_2()
 	pack_table( table, sizeof(table), test_cps, ARRAY_LENGTH(test_cps) );
 
 	const uint8_t* str = (const uint8_t*)"a" "\xc3\xa4";  // aä
-	const uint8_t* str_iter = str;
 
 	utf8_lookup_result res[128];
 	size_t res_size = ARRAY_LENGTH( res );
 
-	ASSERT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, str, &str_iter, res, &res_size ) );
+	str = utf8_lookup_perform( table, str, res, &res_size );
 	ASSERT_EQ( 2u, res_size );
 
 	ASSERT_EQ( 1u, res[0].offset );
@@ -369,12 +364,11 @@ TEST octet_1_and_3()
 									     "\xe1\x80\xa5"  // 0x1025
 									     "\xef\xbf\xbf"  // 0xFFFF
 									     "\xe2\x81\x88"; // ... do not exist in table ...
-	const uint8_t* str_iter = str;
-
 	utf8_lookup_result res[128];
 	size_t res_size = ARRAY_LENGTH( res );
 
-	ASSERT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, str, &str_iter, res, &res_size ) );
+	str = utf8_lookup_perform( table, str, res, &res_size );
+
 	ASSERT_EQ( 11u, res_size );
 
 	ASSERT_EQ(  3u, res[0].offset );
@@ -426,12 +420,11 @@ TEST octet_2_and_3()
 									     "\xe1\x80\xa5"  // 0x1025
 									     "\xef\xbf\xbf"  // 0xFFFF
 									     "\xe2\x81\x88"; // ... do not exist in table ...
-	const uint8_t* str_iter = str;
-
 	utf8_lookup_result res[128];
 	size_t res_size = ARRAY_LENGTH( res );
 
-	ASSERT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, str, &str_iter, res, &res_size ) );
+	str = utf8_lookup_perform( table, str, res, &res_size );
+
 	ASSERT_EQ( 12u, res_size );
 
 	ASSERT_EQ(  4u, res[0].offset );
@@ -486,12 +479,11 @@ TEST octet_1_2_and_3()
 									     "\xe1\x80\xa5"  // 0x1025
 									     "\xef\xbf\xbf"  // 0xFFFF
 									     "\xe2\x81\x88"; // ... do not exist in table ...
-	const uint8_t* str_iter = str;
-
 	utf8_lookup_result res[128];
 	size_t res_size = ARRAY_LENGTH( res );
 
-	ASSERT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, str, &str_iter, res, &res_size ) );
+	str = utf8_lookup_perform( table, str, res, &res_size );
+
 	ASSERT_EQ( 17u, res_size );
 
 	ASSERT_EQ(  4u, res[0].offset );
@@ -564,12 +556,11 @@ TEST octet_1_2_3_and_4()
 										 "\xf0\x90\xa0\x82"  // 0x10802
 										 "\xf4\x8f\xbf\xbf"  // 0x10FFF
 										 "\xf0\x90\xa0\x83";
-	const uint8_t* str_iter = str;
-
 	utf8_lookup_result res[128];
 	size_t res_size = ARRAY_LENGTH( res );
 
-	ASSERT_EQ( UTF8_LOOKUP_ERROR_OK, utf8_lookup_perform( table, str, &str_iter, res, &res_size ) );
+	str = utf8_lookup_perform( table, str, res, &res_size );
+
 	ASSERT_EQ( 22u, res_size );
 
 	ASSERT_EQ(  4u, res[0].offset );

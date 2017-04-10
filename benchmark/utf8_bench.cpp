@@ -181,7 +181,7 @@ static unsigned int utf8_to_unicode_codepoint( const uint8_t** str )
 #  define ALWAYSINLINE inline
 #endif
 
-utf8_lookup_error utf8_lookup_perform_std_cmp( tracked_unordered_map& compare_map, const uint8_t* str, const uint8_t** str_left, utf8_lookup_result* res, size_t* res_size )
+const uint8_t* utf8_lookup_perform_std_cmp( tracked_unordered_map& compare_map, const uint8_t* str, utf8_lookup_result* res, size_t* res_size )
 {
 	utf8_lookup_result* res_out = res;
 	utf8_lookup_result* res_end = res + *res_size;
@@ -199,11 +199,10 @@ utf8_lookup_error utf8_lookup_perform_std_cmp( tracked_unordered_map& compare_ma
 	}
 
 	*res_size = (int)(res_out - res);
-	*str_left = pos;
-	return UTF8_LOOKUP_ERROR_OK;
+	return pos;
 }
 
-utf8_lookup_error utf8_lookup_perform_std_cmp( tracked_map& compare_map, const uint8_t* str, const uint8_t** str_left, utf8_lookup_result* res, size_t* res_size )
+const uint8_t* utf8_lookup_perform_std_cmp( tracked_map& compare_map, const uint8_t* str, utf8_lookup_result* res, size_t* res_size )
 {
 	utf8_lookup_result* res_out = res;
 	utf8_lookup_result* res_end = res + *res_size;
@@ -221,8 +220,7 @@ utf8_lookup_error utf8_lookup_perform_std_cmp( tracked_map& compare_map, const u
 	}
 
 	*res_size = (int)(res_out - res);
-	*str_left = pos;
-	return UTF8_LOOKUP_ERROR_OK;
+	return pos;
 }
 
 static ALWAYSINLINE uint64_t bit_pop_cnt( uint64_t val )
@@ -253,7 +251,7 @@ struct bitarray_lookup
 	uint16_t* offsets;
 };
 
-utf8_lookup_error utf8_lookup_perform_bitarray_cmp( const bitarray_lookup& bitarray, const uint8_t* str, const uint8_t** str_left, utf8_lookup_result* res, size_t* res_size )
+const uint8_t* utf8_lookup_perform_bitarray_cmp( const bitarray_lookup& bitarray, const uint8_t* str, utf8_lookup_result* res, size_t* res_size )
 {
 	utf8_lookup_result* res_out = res;
 	utf8_lookup_result* res_end = res + *res_size;
@@ -280,8 +278,7 @@ utf8_lookup_error utf8_lookup_perform_bitarray_cmp( const bitarray_lookup& bitar
 	}
 
 	*res_size = (int)(res_out - res);
-	*str_left = pos;
-	return UTF8_LOOKUP_ERROR_OK;
+	return pos;
 }
 
 static void build_bitarray_lookup_map( std::vector<unsigned int>& cps, bitarray_lookup& output, test_case* test )
@@ -443,7 +440,7 @@ static void run_test_case(const char* test_text_file)
 		{
 			const uint8_t* str_iter = text;
 			while( *str_iter )
-				utf8_lookup_perform( table, str_iter, &str_iter, res, &res_size );
+				str_iter = utf8_lookup_perform( table, str_iter, res, &res_size );
 		}
 		test_cases[0].runtime = cpu_tick() - start;
 	}
@@ -458,7 +455,7 @@ static void run_test_case(const char* test_text_file)
 		{
 			const uint8_t* str_iter = text;
 			while( *str_iter )
-				utf8_lookup_perform_std_cmp( compare_map, str_iter, &str_iter, res, &res_size );
+				str_iter = utf8_lookup_perform_std_cmp( compare_map, str_iter, res, &res_size );
 		}
 		test_cases[1].runtime = cpu_tick() - start;
 	}
@@ -473,7 +470,7 @@ static void run_test_case(const char* test_text_file)
 		{
 			const uint8_t* str_iter = text;
 			while( *str_iter )
-				utf8_lookup_perform_std_cmp( compare_unordered_map, str_iter, &str_iter, res, &res_size );
+				str_iter = utf8_lookup_perform_std_cmp( compare_unordered_map, str_iter, res, &res_size );
 		}
 		test_cases[2].runtime = cpu_tick() - start;
 	}
@@ -488,7 +485,7 @@ static void run_test_case(const char* test_text_file)
 		{
 			const uint8_t* str_iter = text;
 			while( *str_iter )
-				utf8_lookup_perform_bitarray_cmp( bitarray, str_iter, &str_iter, res, &res_size );
+				str_iter = utf8_lookup_perform_bitarray_cmp( bitarray, str_iter, res, &res_size );
 		}
 		test_cases[3].runtime = cpu_tick() - start;
 	}
@@ -530,9 +527,9 @@ static void run_test_case(const char* test_text_file)
 		bool print = true;
 		while( *str_iter1 && *str_iter2 )
 		{
-			utf8_lookup_perform_std_cmp( compare_unordered_map, str_iter1, &str_iter1, res1, &res_size1 );
-			utf8_lookup_perform( table, str_iter2, &str_iter2, res2, &res_size2 );
-			utf8_lookup_perform_bitarray_cmp( bitarray, str_iter3, &str_iter3, res3, &res_size3 );
+			str_iter1 = utf8_lookup_perform_std_cmp( compare_unordered_map, str_iter1, res1, &res_size1 );
+			str_iter2 = utf8_lookup_perform( table, str_iter2, res2, &res_size2 );
+			str_iter3 = utf8_lookup_perform_bitarray_cmp( bitarray, str_iter3, res3, &res_size3 );
 
 			if( str_iter1 != str_iter2 ) { printf("mismatching str_iter!\n"); break; }
 			if( str_iter1 != str_iter3 ) { printf("mismatching str_iter!\n"); break; }

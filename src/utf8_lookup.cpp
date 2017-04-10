@@ -315,11 +315,10 @@ utf8_lookup_error utf8_lookup_calc_table_size( size_t*       table_size,
 	return UTF8_LOOKUP_ERROR_OK;
 }
 
-utf8_lookup_error utf8_lookup_perform( void*               lookup,
-                                       const uint8_t*      str,
-                                       const uint8_t**     str_left,
-                                       utf8_lookup_result* res,
-                                       size_t*             res_size )
+const uint8_t* utf8_lookup_perform( void*               lookup,
+                                    const uint8_t*      str,
+                                    utf8_lookup_result* res,
+                                    size_t*             res_size )
 {
 	utf8_lookup_result* res_out = res;
 	utf8_lookup_result* res_end = res + *res_size;
@@ -389,6 +388,5 @@ utf8_lookup_error utf8_lookup_perform( void*               lookup,
 	}
 
 	*res_size = (size_t)(res_out - res);
-	*str_left = pos;
-	return UTF8_LOOKUP_ERROR_OK;
+	return pos;
 }
