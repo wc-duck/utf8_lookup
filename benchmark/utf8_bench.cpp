@@ -173,6 +173,14 @@ static unsigned int utf8_to_unicode_codepoint( const uint8_t** str )
 	return 0;
 }
 
+#if defined( __GNUC__ )
+#  define ALWAYSINLINE inline __attribute__((always_inline))
+#elif defined( _MSC_VER )
+#  define ALWAYSINLINE __forceinline
+#else
+#  define ALWAYSINLINE inline
+#endif
+
 utf8_lookup_error utf8_lookup_perform_std_cmp( tracked_unordered_map& compare_map, const uint8_t* str, const uint8_t** str_left, utf8_lookup_result* res, size_t* res_size )
 {
 	utf8_lookup_result* res_out = res;
@@ -217,6 +225,90 @@ utf8_lookup_error utf8_lookup_perform_std_cmp( tracked_map& compare_map, const u
 	return UTF8_LOOKUP_ERROR_OK;
 }
 
+static ALWAYSINLINE uint64_t bit_pop_cnt( uint64_t val )
+{
+#if defined( __GNUC__ ) && defined( __POPCNT__ )
+	// the gcc implementation of popcountll is only faster when the actual instruction exists
+	return __builtin_popcountll( (unsigned long long)val );
+#else
+	val = (val & 0x5555555555555555ULL) + ((val >> 1) & 0x5555555555555555ULL);
+	val = (val & 0x3333333333333333ULL) + ((val >> 2) & 0x3333333333333333ULL);
+	val = (val & 0x0F0F0F0F0F0F0F0FULL) + ((val >> 4) & 0x0F0F0F0F0F0F0F0FULL);
+	return (val * 0x0101010101010101ULL) >> 56;
+#endif
+}
+
+struct test_case
+{
+	const char* name;
+	uint64_t    runtime;
+	size_t      allocs;
+	size_t      frees;
+	size_t      memused;
+};
+
+struct bitarray_lookup
+{
+	uint64_t* lookup;
+	uint16_t* offsets;
+};
+
+utf8_lookup_error utf8_lookup_perform_bitarray_cmp( const bitarray_lookup& bitarray, const uint8_t* str, const uint8_t** str_left, utf8_lookup_result* res, size_t* res_size )
+{
+	utf8_lookup_result* res_out = res;
+	utf8_lookup_result* res_end = res + *res_size;
+
+	const uint8_t* pos = str;
+
+	while( *pos && res_out != res_end )
+	{
+		res_out->pos   = pos;
+		int code_point = utf8_to_unicode_codepoint( &pos );
+
+		int index = code_point >> 6;
+		int bit = code_point & ( 64 - 1 );
+
+		uint64_t bit_mask = 1ULL << bit;
+		uint64_t lookup = bitarray.lookup[index];
+
+		if( lookup & bit_mask )
+			res_out->offset = bitarray.offsets[index] + (unsigned int)bit_pop_cnt(lookup & (bit_mask - 1ULL));
+		else
+			res_out->offset = 0;
+
+		++res_out;
+	}
+
+	*res_size = (int)(res_out - res);
+	*str_left = pos;
+	return UTF8_LOOKUP_ERROR_OK;
+}
+
+static void build_bitarray_lookup_map( std::vector<unsigned int>& cps, bitarray_lookup& output, test_case* test )
+{
+	unsigned int max_codepoint = cps.back();
+	unsigned int needed_elements = max_codepoint / 64 + 1;
+	test->memused = needed_elements * ( sizeof(output.lookup[0]) + sizeof(output.offsets[0]) );
+	output.lookup = (uint64_t*)malloc( test->memused );
+	output.offsets = (uint16_t*)(output.lookup + needed_elements);
+	memset( output.lookup, 0x0, test->memused );
+
+	for( size_t i = 0; i < cps.size(); ++i )
+	{
+		unsigned int cp = cps[i];
+		unsigned int index = cp >> 6;
+		unsigned int bit = cp & (64-1);
+
+		uint64_t bit_mask = 1ULL << (uint64_t)bit;
+
+		if( output.lookup[index] == 0 )
+			output.offsets[index] = (uint16_t)(i + 1); // + 1 since 0 is reserved for "error"
+		output.lookup[index] |= bit_mask;
+	}
+
+	test->allocs = 1;
+	test->frees  = 0;
+}
 
 static uint8_t* load_file( const char* file_name, size_t* file_size )
 {
@@ -267,15 +359,6 @@ static void find_all_codepoints( const uint8_t* text, std::vector<unsigned int>&
 	printf( "octet: %7d %7d %7d %7d\n", 1, 2, 3, 4);
 	printf( "       %7u %7u %7u %7u\n\n", count[0], count[1], count[2], count[3]);
 }
-
-struct test_case
-{
-	const char* name;
-	uint64_t    runtime;
-	size_t      allocs;
-	size_t      frees;
-	size_t      memused;
-};
 
 void build_compare_map( std::vector<unsigned int>& cps, tracked_map& output, test_case* test )
 {
@@ -333,7 +416,8 @@ static void run_test_case(const char* test_text_file)
 	test_case test_cases[] = {
 		{ "utf8_lookup", 0 ,0, 0, 0 },
 		{ "std::map", 0 ,0, 0, 0 },
-		{ "std::unordered_map", 0 ,0, 0, 0 }
+		{ "std::unordered_map", 0 ,0, 0, 0 },
+		{ "bitarray", 0 ,0, 0, 0 }
 	};
 
 	std::vector<unsigned int> cps;
@@ -346,6 +430,8 @@ static void run_test_case(const char* test_text_file)
 	tracked_unordered_map compare_unordered_map;
 	build_compare_map( cps, compare_map, &test_cases[1] );
 	build_compare_map( cps, compare_unordered_map, &test_cases[2] );
+	bitarray_lookup bitarray;
+	build_bitarray_lookup_map( cps, bitarray, &test_cases[3] );
 
 	{
 		utf8_lookup_result res[256];
@@ -392,6 +478,21 @@ static void run_test_case(const char* test_text_file)
 		test_cases[2].runtime = cpu_tick() - start;
 	}
 
+	{
+		utf8_lookup_result res[256];
+		size_t res_size = ARRAY_LENGTH(res);
+
+		uint64_t start = cpu_tick();
+
+		for( int i = 0; i < 100; ++i )
+		{
+			const uint8_t* str_iter = text;
+			while( *str_iter )
+				utf8_lookup_perform_bitarray_cmp( bitarray, str_iter, &str_iter, res, &res_size );
+		}
+		test_cases[3].runtime = cpu_tick() - start;
+	}
+
 	printf("%-20s%-20s%-20s%-20s%-20s%-20s%-20s\n", "name", "allocs", "frees", "memused (kb)", "bytes/codepoint", "time (sec)", "GB/sec");
 	for( size_t i = 0; i < ARRAY_LENGTH(test_cases); ++i )
 	{
@@ -409,14 +510,18 @@ static void run_test_case(const char* test_text_file)
 	{
 		utf8_lookup_result res1[256];
 		utf8_lookup_result res2[256];
+		utf8_lookup_result res3[256];
 		size_t res_size1 = 256;
 		size_t res_size2 = 256;
+		size_t res_size3 = 256;
 
 		memset( res1, 0x0, sizeof(res1) );
 		memset( res2, 0x0, sizeof(res2) );
+		memset( res3, 0x0, sizeof(res3) );
 
 		const uint8_t* str_iter1 = text;
 		const uint8_t* str_iter2 = text;
+		const uint8_t* str_iter3 = text;
 
 		unsigned int chars = 0;
 		unsigned int num_missmatch = 0;
@@ -427,18 +532,12 @@ static void run_test_case(const char* test_text_file)
 		{
 			utf8_lookup_perform_std_cmp( compare_unordered_map, str_iter1, &str_iter1, res1, &res_size1 );
 			utf8_lookup_perform( table, str_iter2, &str_iter2, res2, &res_size2 );
+			utf8_lookup_perform_bitarray_cmp( bitarray, str_iter3, &str_iter3, res3, &res_size3 );
 
-			if( str_iter1 != str_iter2 )
-			{
-				printf("mismatching str_iter!\n");
-				break;
-			}
-
-			if( res_size1 != res_size2 )
-			{
-				printf("mismatching res_size!\n");
-				break;
-			}
+			if( str_iter1 != str_iter2 ) { printf("mismatching str_iter!\n"); break; }
+			if( str_iter1 != str_iter3 ) { printf("mismatching str_iter!\n"); break; }
+			if( res_size1 != res_size2 ) { printf("mismatching res_size!\n"); break; }
+			if( res_size1 != res_size3 ) { printf("mismatching res_size!\n"); break; }
 
 			for( size_t i = 0; i < res_size1; ++i )
 			{
@@ -450,11 +549,29 @@ static void run_test_case(const char* test_text_file)
 						printf("%d[%lu] = pos mismatch! %p %p\n", loop, i, res1[i].pos, res2[i].pos);
 				}
 
+				if( res1[i].pos != res3[i].pos )
+				{
+					if( print )
+						printf("%d[%lu] = pos mismatch! %p %p\n", loop, i, res1[i].pos, res3[i].pos);
+				}
+
 				if( res1[i].offset != res2[i].offset )
 				{
 					if( print )
 					{
 						printf("%d[%lu] = %u %u\n", loop, i, res1[i].offset, res2[i].offset );
+						uint8_t test[4] = { res1[i].pos[0], res1[i].pos[1], res1[i].pos[2], '\0' };
+						printf("char %s\n", test);
+						print = false;
+					}
+					++num_missmatch;
+				}
+
+				if( res1[i].offset != res3[i].offset )
+				{
+					if( print )
+					{
+						printf("%d[%lu] = %u %u\n", loop, i, res1[i].offset, res3[i].offset );
 						uint8_t test[4] = { res1[i].pos[0], res1[i].pos[1], res1[i].pos[2], '\0' };
 						printf("char %s\n", test);
 						print = false;
@@ -474,6 +591,7 @@ static void run_test_case(const char* test_text_file)
 
 	free( text_data );
 	free( table );
+	free( bitarray.lookup );
 }
 
 int main( int argc, char** argv )
