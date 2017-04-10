@@ -340,11 +340,6 @@ utf8_lookup_error utf8_lookup_perform( void*               lookup,
 		1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
 		2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2, 3,3,3,3,3,3,3,3,4,4,4,4,5,5,5,5
 	};
-	/*
-	// Second implementation, might be faster if pop_count-instruction is present.
-	static const int OCTET_LOOKUP[] = { 0, 1337, 1, 2 }; // 1337 is an error ;)
-	return OCTET_LOOKUP[ bit_leading_one_count( first_byte ) ];
-	*/
 
 	while( *pos && res_out != res_end )
 	{
