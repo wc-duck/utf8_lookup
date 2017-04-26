@@ -390,6 +390,16 @@ static void* build_utf8_lookup_map( std::vector<unsigned int>& cps, test_case* t
 	return table;
 }
 
+const uint8_t* utf8_lookup_perform_scalar( void*               lookup,
+ 	  	  	  							   const uint8_t*      str,
+										   utf8_lookup_result* res,
+										   size_t*             res_size );
+
+const uint8_t* utf8_lookup_perform_popcnt( void*               lookup,
+ 	  	  	  							   const uint8_t*      str,
+										   utf8_lookup_result* res,
+										   size_t*             res_size );
+
 static void run_test_case(const char* test_text_file)
 {
 	printf("\ntest text: %s\n", test_text_file);
@@ -411,7 +421,8 @@ static void run_test_case(const char* test_text_file)
 	}
 
 	test_case test_cases[] = {
-		{ "utf8_lookup", 0 ,0, 0, 0 },
+		{ "utf8_lookup_scalar", 0 ,0, 0, 0 },
+		{ "utf8_lookup_popcnt", 0 ,0, 0, 0 },
 		{ "std::map", 0 ,0, 0, 0 },
 		{ "std::unordered_map", 0 ,0, 0, 0 },
 		{ "bitarray", 0 ,0, 0, 0 }
@@ -425,10 +436,10 @@ static void run_test_case(const char* test_text_file)
 
 	tracked_map compare_map;
 	tracked_unordered_map compare_unordered_map;
-	build_compare_map( cps, compare_map, &test_cases[1] );
-	build_compare_map( cps, compare_unordered_map, &test_cases[2] );
+	build_compare_map( cps, compare_map, &test_cases[2] );
+	build_compare_map( cps, compare_unordered_map, &test_cases[3] );
 	bitarray_lookup bitarray;
-	build_bitarray_lookup_map( cps, bitarray, &test_cases[3] );
+	build_bitarray_lookup_map( cps, bitarray, &test_cases[4] );
 
 	{
 		utf8_lookup_result res[256];
@@ -440,7 +451,7 @@ static void run_test_case(const char* test_text_file)
 		{
 			const uint8_t* str_iter = text;
 			while( *str_iter )
-				str_iter = utf8_lookup_perform( table, str_iter, res, &res_size );
+				str_iter = utf8_lookup_perform_scalar( table, str_iter, res, &res_size );
 		}
 		test_cases[0].runtime = cpu_tick() - start;
 	}
@@ -455,7 +466,7 @@ static void run_test_case(const char* test_text_file)
 		{
 			const uint8_t* str_iter = text;
 			while( *str_iter )
-				str_iter = utf8_lookup_perform_std_cmp( compare_map, str_iter, res, &res_size );
+				str_iter = utf8_lookup_perform_popcnt( table, str_iter, res, &res_size );
 		}
 		test_cases[1].runtime = cpu_tick() - start;
 	}
@@ -470,7 +481,7 @@ static void run_test_case(const char* test_text_file)
 		{
 			const uint8_t* str_iter = text;
 			while( *str_iter )
-				str_iter = utf8_lookup_perform_std_cmp( compare_unordered_map, str_iter, res, &res_size );
+				str_iter = utf8_lookup_perform_std_cmp( compare_map, str_iter, res, &res_size );
 		}
 		test_cases[2].runtime = cpu_tick() - start;
 	}
@@ -485,9 +496,24 @@ static void run_test_case(const char* test_text_file)
 		{
 			const uint8_t* str_iter = text;
 			while( *str_iter )
-				str_iter = utf8_lookup_perform_bitarray_cmp( bitarray, str_iter, res, &res_size );
+				str_iter = utf8_lookup_perform_std_cmp( compare_unordered_map, str_iter, res, &res_size );
 		}
 		test_cases[3].runtime = cpu_tick() - start;
+	}
+
+	{
+		utf8_lookup_result res[256];
+		size_t res_size = ARRAY_LENGTH(res);
+
+		uint64_t start = cpu_tick();
+
+		for( int i = 0; i < 100; ++i )
+		{
+			const uint8_t* str_iter = text;
+			while( *str_iter )
+				str_iter = utf8_lookup_perform_bitarray_cmp( bitarray, str_iter, res, &res_size );
+		}
+		test_cases[4].runtime = cpu_tick() - start;
 	}
 
 	printf("%-20s%-20s%-20s%-20s%-20s%-20s%-20s\n", "name", "allocs", "frees", "memused (kb)", "bytes/codepoint", "time (sec)", "GB/sec");

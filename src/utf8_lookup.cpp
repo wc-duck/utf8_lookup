@@ -31,6 +31,12 @@
 #include <ctype.h>
 #include <string.h>
 
+#if defined( __GNUC__ )
+#  include <cpuid.h>
+#elif defined( _MSC_VER )
+#  include <intrin.h>
+#endif
+
 /*
 	range		      binary code point             utf8 bytes
 	 0 - 7F           0xxxxxxx                      0xxxxxxx
@@ -75,17 +81,50 @@
 #  define ALWAYSINLINE inline
 #endif
 
-static ALWAYSINLINE uint64_t bit_pop_cnt( uint64_t val )
+static void utf8_lookup_cpuid( uint32_t op, uint32_t* eax, uint32_t* ebx, uint32_t* ecx, uint32_t* edx )
 {
-#if defined( __GNUC__ ) && defined( __POPCNT__ )
-	// the gcc implementation of popcountll is only faster when the actual instruction exists
-	return __builtin_popcountll( (unsigned long long)val );
+#if defined( __GNUC__ )
+	__get_cpuid(op,eax,ebx,ecx,edx);
+#elif defined( _MSC_VER )
+	int regs[4];
+	__cpuid( regs, op );
+	*eax = (uint32_t)regs[0];
+	*ebx = (uint32_t)regs[1];
+	*ecx = (uint32_t)regs[2];
+	*edx = (uint32_t)regs[3];
 #else
+	*eax = 0;
+#endif
+}
+
+static bool utf8_lookup_has_popcnt()
+{
+	uint32_t eax; uint32_t ebx; uint32_t ecx; uint32_t edx;
+	utf8_lookup_cpuid(0, &eax, &ebx, &ecx, &edx);
+	if( eax >= 1 )
+	{
+		utf8_lookup_cpuid( 1, &eax, &ebx, &ecx, &edx );
+		return ecx & ( 1 << 23 );
+	}
+	return false;
+}
+
+static ALWAYSINLINE uint64_t utf8_popcnt_impl( uint64_t val, const int has_popcnt )
+{
+#if defined( __GNUC__ )
+	if( has_popcnt )
+		return __builtin_popcountll( (unsigned long long)val ); // the gcc implementation of popcountll is only faster when the actual instruction exists
+#endif
+
+#if defined(_MSC_VER)
+	if( has_popcnt )
+		return (uint64_t)__popcnt64((uint64_t)val);
+#endif
+
 	val = (val & 0x5555555555555555ULL) + ((val >> 1) & 0x5555555555555555ULL);
 	val = (val & 0x3333333333333333ULL) + ((val >> 2) & 0x3333333333333333ULL);
 	val = (val & 0x0F0F0F0F0F0F0F0FULL) + ((val >> 4) & 0x0F0F0F0F0F0F0F0FULL);
 	return (val * 0x0101010101010101ULL) >> 56;
-#endif
 }
 
 static int utf8_split_to_bytes( unsigned int cp, unsigned int* bytes )
@@ -242,13 +281,13 @@ utf8_lookup_error utf8_lookup_gen_table( void*         table,
             {
                 // writing a char
                 offsets[ j ] = (uint16_t)char_offset;
-                char_offset += (uint32_t)bit_pop_cnt( avail_bits[ j ] );
+                char_offset += (uint32_t)utf8_popcnt_impl( avail_bits[ j ], 0 );
             }
             else if( offsets[ j ] == 2 )
             {
                 // writing a group
                 offsets[ j ] = (uint16_t)group_offset;
-                group_offset += (uint32_t)bit_pop_cnt( avail_bits[ j ] );
+                group_offset += (uint32_t)utf8_popcnt_impl( avail_bits[ j ], 0 );
             }
         }
     }
@@ -315,10 +354,11 @@ utf8_lookup_error utf8_lookup_calc_table_size( size_t*       table_size,
 	return UTF8_LOOKUP_ERROR_OK;
 }
 
-const uint8_t* utf8_lookup_perform( void*               lookup,
-                                    const uint8_t*      str,
-                                    utf8_lookup_result* res,
-                                    size_t*             res_size )
+ALWAYSINLINE const uint8_t* utf8_lookup_perform_impl( void*               lookup,
+													  const uint8_t*      str,
+													  utf8_lookup_result* res,
+													  size_t*             res_size,
+													  int                 has_popcnt )
 {
 	utf8_lookup_result* res_out = res;
 	utf8_lookup_result* res_end = res + *res_size;
@@ -372,7 +412,7 @@ const uint8_t* utf8_lookup_perform( void*               lookup,
 
 			// how many bits are set "before" the current element in this group? this is used
 			// to calculate the next item in the lookup.
-			uint64_t items_before = bit_pop_cnt( avail_bits[index] & ( check_bit - (uint64_t)1 ) );
+			uint64_t items_before = utf8_popcnt_impl( avail_bits[index] & ( check_bit - (uint64_t)1 ), has_popcnt );
 
 			// select the next offset in the avail_bits-array to check or if this is the last iteration this
 			// will be the actual result.
@@ -389,4 +429,45 @@ const uint8_t* utf8_lookup_perform( void*               lookup,
 
 	*res_size = (size_t)(res_out - res);
 	return pos;
+}
+
+const uint8_t* utf8_lookup_perform_scalar( void*               lookup,
+                                           const uint8_t*      str,
+                                           utf8_lookup_result* res,
+                                           size_t*             res_size )
+{
+	return utf8_lookup_perform_impl( lookup, str, res, res_size, 0 );
+}
+
+#if defined(__GNUC__)
+// ... tell gcc to optimize this as if a popcnt instruction exists ...
+const uint8_t* utf8_lookup_perform_popcnt( void*               lookup,
+                                           const uint8_t*      str,
+                                           utf8_lookup_result* res,
+                                           size_t*             res_size ) __attribute__((target("popcnt")));
+#endif
+
+const uint8_t* utf8_lookup_perform_popcnt( void*               lookup,
+                                           const uint8_t*      str,
+                                           utf8_lookup_result* res,
+                                           size_t*             res_size )
+{
+	return utf8_lookup_perform_impl( lookup, str, res, res_size, 1 );
+}
+
+const uint8_t* utf8_lookup_perform( void*               lookup,
+                                    const uint8_t*      str,
+                                    utf8_lookup_result* res,
+                                    size_t*             res_size )
+{
+	static const uint8_t* (*_func)( void*, const uint8_t*, utf8_lookup_result*, size_t* ) = 0;
+	if( _func == 0 )
+	{
+		if(utf8_lookup_has_popcnt())
+			_func = utf8_lookup_perform_popcnt;
+		else
+			_func = utf8_lookup_perform_scalar;
+	}
+
+	return _func( lookup, str, res, res_size );
 }
