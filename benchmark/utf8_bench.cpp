@@ -26,6 +26,7 @@
    Fredrik Kihlander
 */
 
+#define UTF8_LOOKUP_IMPLEMENTATION
 #include <utf8_lookup/utf8_lookup.h>
 
 #include <time.h>
@@ -223,7 +224,7 @@ const uint8_t* utf8_lookup_perform_std_cmp( tracked_map& compare_map, const uint
 	return pos;
 }
 
-static ALWAYSINLINE uint64_t utf8_popcnt_impl( uint64_t val, const int has_popcnt )
+/*static ALWAYSINLINE uint64_t utf8_popcnt_impl( uint64_t val, const int has_popcnt )
 {
 #if defined( __GNUC__ )
 	if( has_popcnt )
@@ -239,7 +240,7 @@ static ALWAYSINLINE uint64_t utf8_popcnt_impl( uint64_t val, const int has_popcn
 	val = (val & 0x3333333333333333ULL) + ((val >> 2) & 0x3333333333333333ULL);
 	val = (val & 0x0F0F0F0F0F0F0F0FULL) + ((val >> 4) & 0x0F0F0F0F0F0F0F0FULL);
 	return (val * 0x0101010101010101ULL) >> 56;
-}
+}*/
 
 struct test_case
 {
@@ -466,6 +467,7 @@ static void run_test_case(const char* test_text_file)
 
 	// build lookup map
 	void* table = build_utf8_lookup_map( cps, &test_cases[0] );
+	memcpy( &test_cases[1], &test_cases[0], sizeof(test_case) );
 
 	tracked_map compare_map;
 	tracked_unordered_map compare_unordered_map;
@@ -473,6 +475,7 @@ static void run_test_case(const char* test_text_file)
 	build_compare_map( cps, compare_unordered_map, &test_cases[3] );
 	bitarray_lookup bitarray;
 	build_bitarray_lookup_map( cps, bitarray, &test_cases[4] );
+	memcpy( &test_cases[5], &test_cases[4], sizeof(test_case) );
 
 	{
 		utf8_lookup_result res[256];

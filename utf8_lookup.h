@@ -3,7 +3,7 @@
    Inspired by the HAMT-data structure and designed to be used to translate string
    into a list of glyphs for rendering.
 
-   version 0.1, october, 2012
+   version 0.1, december, 2012
 
    Copyright (C) 2012- Fredrik Kihlander
 
@@ -26,7 +26,84 @@
    Fredrik Kihlander
 */
 
-#include <utf8_lookup/utf8_lookup.h>
+#ifndef UTF8_LOOKUP_H_INCLUDED
+#define UTF8_LOOKUP_H_INCLUDED
+
+#include <stdint.h>
+#include <string.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/**
+ * Struct containing result for one translated utf8-codepoint.
+ */
+struct utf8_lookup_result
+{
+	const uint8_t* pos;     //< position in input-data that generated result
+	unsigned int   offset;  //< offset in glyph-table where to find character.
+};
+
+/**
+ * Error-codes returned from utf8_lookup.
+ */
+enum utf8_lookup_error
+{
+	UTF8_LOOKUP_ERROR_OK,
+	UTF8_LOOKUP_ERROR_BUFFER_TO_SMALL
+};
+
+/**
+ * Calculates the size needed to build lookup-data for all glyphs in codepoints.
+ * 
+ * @param table_size pointer to a size_t where to return the size.
+ * @param codepoints the codepoints to pack, requires codepoints to be sorted from small to big.
+ * @param num_codepoints number of codepoints in codepoints.
+ *
+ * @return UTF8_LOOKUP_ERROR_OK on success.
+ */
+utf8_lookup_error utf8_lookup_calc_table_size( size_t*       table_size,
+                                               unsigned int* codepoints,
+                                               unsigned int  num_codepoint );
+
+/**
+ * Builds lookup-data to use with utf8_lookup_perform to lookup glyph offsets.
+ * 
+ * @param table memory area where to build lookup-data
+ * @param table_size size of data pointed to by table
+ * @param codepoints the codepoints to pack, requires codepoints to be sorted from small to big.
+ * @param num_codepoints number of codepoints in codepoints.
+ *
+ * @return UTF8_LOOKUP_ERROR_OK on success.
+ */
+utf8_lookup_error utf8_lookup_gen_table( void*         table,
+                                         size_t        table_size,
+                                         unsigned int* codepoints,
+                                         unsigned int  num_codepoint );
+
+/**
+ * Perform lookup of offsets for chars in str.
+ *
+ * @param table memory area containing data packed with utf8_lookup_gen_table.
+ * @param str string to make lookup in.
+ * @param res pointer to buffer where to return result.
+ * @param res_size size of res.
+ *
+ * @return pointer into str to start of what is left of string after parse.
+ *
+ * @note str is assumed to be correct utf8, no error-checking is performed.
+ */
+const uint8_t* utf8_lookup_perform( void*               table,
+                                    const uint8_t*      str,
+                                    utf8_lookup_result* res,
+                                    size_t*             res_size );
+
+#ifdef __cplusplus
+}
+#endif
+
+#if defined(UTF8_LOOKUP_IMPLEMENTATION)
 
 #include <ctype.h>
 #include <string.h>
@@ -184,7 +261,7 @@ utf8_lookup_error utf8_lookup_gen_table( void*         table,
 					 	 	 	 	 	 unsigned int  num_codepoints )
 {
     memset( table, 0x0, table_size );
-    
+
     size_t calc_table_size;
     utf8_lookup_calc_table_size( &calc_table_size, codepoints, num_codepoints );
 
@@ -197,15 +274,15 @@ utf8_lookup_error utf8_lookup_gen_table( void*         table,
     uint16_t* offsets    = (uint16_t*)((uint8_t*)avail_bits + sizeof(uint64_t) * items);
 
     // loop all codepoints
-    
+
     unsigned int* start = codepoints;
     unsigned int* end   = codepoints + num_codepoints;
-    
+
     int curr_elem = 0;
-    
+
     int octet_start[5] = { -1, -1, -1, -1, -1 };
     int last_octet = -1;
-    
+
     for( int octet = 0; octet < 5; ++octet )
     {
         unsigned int last_prev_gids[4] = { (unsigned int)-1, (unsigned int)-1, (unsigned int)-1, (unsigned int)-1 };
@@ -224,14 +301,14 @@ utf8_lookup_error utf8_lookup_gen_table( void*         table,
             {
                 // we are in the dynamic section of the table.
                 curr_elem = curr_elem < 6 ? 5 : curr_elem;
-                
+
                 if( ( memcmp( last_prev_gids, gids, (size_t)( octet ) * sizeof( unsigned int ) ) != 0 ) || last_octet != curr_octet )
                 {
                     ++curr_elem;
                     memcpy( last_prev_gids, gids, sizeof( gids ) );
                 }
             }
-            
+
             last_octet = curr_octet;
 
             if( octet_start[ octet ] == -1 )
@@ -241,7 +318,7 @@ utf8_lookup_error utf8_lookup_gen_table( void*         table,
             {
                 // advance start, we will not do anything with this char again.
                 ++start;
-                
+
                 // mark element as chars
                 offsets[ curr_elem ] = 1;
             }
@@ -267,10 +344,10 @@ utf8_lookup_error utf8_lookup_gen_table( void*         table,
         else
             last_start = octet_start[i];
     }
-    
+
     uint32_t char_offset = 1;
     uint32_t group_offset = 6;
-    
+
     for( unsigned int octet = 0; octet < 4; ++octet )
     {
 		group_offset = (uint32_t)octet_start[ octet + 1 ];
@@ -348,7 +425,7 @@ utf8_lookup_error utf8_lookup_calc_table_size( size_t*       table_size,
     // uint64_t[item_count]  - availabillity bits.
     // uint16_t[item_count]  - group-offsets.
     unsigned int item_count = curr_elem + 2; // TODO: remember why I need the +2 here and document. ( unittests fail without it )
-    *table_size = sizeof(uint64_t) + 
+    *table_size = sizeof(uint64_t) +
                   ( item_count * sizeof(uint64_t) ) +
                   ( item_count * sizeof(uint16_t) );
 	return UTF8_LOOKUP_ERROR_OK;
@@ -471,3 +548,7 @@ const uint8_t* utf8_lookup_perform( void*               lookup,
 
 	return _func( lookup, str, res, res_size );
 }
+
+#endif // defined(UTF8_LOOKUP_IMPLEMENTATION)
+
+#endif // UTF8_LOOKUP_H_INCLUDED

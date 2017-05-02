@@ -27,6 +27,8 @@
 */
 
 #include "greatest.h"
+
+#define UTF8_LOOKUP_IMPLEMENTATION
 #include <utf8_lookup/utf8_lookup.h>
 
 #define ARRAY_LENGTH( arr ) ( sizeof( arr )/sizeof( arr[0] ) )

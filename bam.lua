@@ -107,20 +107,15 @@ settings.lib.Output = output_func
 settings.link.Output = output_func
 settings.cc.includes:Add("include")
 
-local objs  = Compile( settings, 'src/utf8_lookup.cpp' )
-local lib   = StaticLibrary( settings, 'utf8_lookup', objs )
-
 settings.link.libpath:Add( 'local/' .. config .. '/' .. platform )
 
-local test_objs  = Compile( settings, 'test/utf8_lookup_tests.cpp' )
-local tests      = Link( settings, 'utf8_lookup_tests', test_objs, lib )
+local tests = Link( settings, 'utf8_lookup_tests', Compile( settings, 'test/utf8_lookup_tests.cpp' ) )
 
 if compiler ~= "msvc" then
     settings.cc.flags:Add( "-std=gnu++0x" )
 end
 
-local bench_objs = Compile( settings, 'benchmark/utf8_bench.cpp' )
-local benchmark  = Link( settings, 'utf8_lookup_bench', bench_objs, lib )
+local benchmark = Link( settings, 'utf8_lookup_bench', Compile( settings, 'benchmark/utf8_bench.cpp' ) )
 
 test_args = " -v"
 if ScriptArgs["test"]     then test_args = test_args .. " -t " .. ScriptArgs["test"] end
