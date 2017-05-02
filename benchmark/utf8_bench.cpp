@@ -223,17 +223,22 @@ const uint8_t* utf8_lookup_perform_std_cmp( tracked_map& compare_map, const uint
 	return pos;
 }
 
-static ALWAYSINLINE uint64_t bit_pop_cnt( uint64_t val )
+static ALWAYSINLINE uint64_t utf8_popcnt_impl( uint64_t val, const int has_popcnt )
 {
-#if defined( __GNUC__ ) && defined( __POPCNT__ )
-	// the gcc implementation of popcountll is only faster when the actual instruction exists
-	return __builtin_popcountll( (unsigned long long)val );
-#else
+#if defined( __GNUC__ )
+	if( has_popcnt )
+		return __builtin_popcountll( (unsigned long long)val ); // the gcc implementation of popcountll is only faster when the actual instruction exists
+#endif
+
+#if defined(_MSC_VER)
+	if( has_popcnt )
+		return (uint64_t)__popcnt64((uint64_t)val);
+#endif
+
 	val = (val & 0x5555555555555555ULL) + ((val >> 1) & 0x5555555555555555ULL);
 	val = (val & 0x3333333333333333ULL) + ((val >> 2) & 0x3333333333333333ULL);
 	val = (val & 0x0F0F0F0F0F0F0F0FULL) + ((val >> 4) & 0x0F0F0F0F0F0F0F0FULL);
 	return (val * 0x0101010101010101ULL) >> 56;
-#endif
 }
 
 struct test_case
@@ -251,7 +256,11 @@ struct bitarray_lookup
 	uint16_t* offsets;
 };
 
-const uint8_t* utf8_lookup_perform_bitarray_cmp( const bitarray_lookup& bitarray, const uint8_t* str, utf8_lookup_result* res, size_t* res_size )
+ALWAYSINLINE const uint8_t* utf8_lookup_perform_bitarray_cmp_impl( const bitarray_lookup& bitarray,
+                                                                   const uint8_t*         str,
+                                                                   utf8_lookup_result*    res,
+                                                                   size_t*                res_size,
+                                                                   int                    has_popcnt )
 {
 	utf8_lookup_result* res_out = res;
 	utf8_lookup_result* res_end = res + *res_size;
@@ -270,7 +279,7 @@ const uint8_t* utf8_lookup_perform_bitarray_cmp( const bitarray_lookup& bitarray
 		uint64_t lookup = bitarray.lookup[index];
 
 		if( lookup & bit_mask )
-			res_out->offset = bitarray.offsets[index] + (unsigned int)bit_pop_cnt(lookup & (bit_mask - 1ULL));
+			res_out->offset = bitarray.offsets[index] + (unsigned int)utf8_popcnt_impl(lookup & (bit_mask - 1ULL), has_popcnt);
 		else
 			res_out->offset = 0;
 
@@ -279,6 +288,29 @@ const uint8_t* utf8_lookup_perform_bitarray_cmp( const bitarray_lookup& bitarray
 
 	*res_size = (int)(res_out - res);
 	return pos;
+}
+
+const uint8_t* utf8_lookup_perform_bitarray_cmp_scalar( const bitarray_lookup& bitarray,
+                                                        const uint8_t*         str,
+                                                        utf8_lookup_result*    res,
+                                                        size_t*                res_size )
+{
+	return utf8_lookup_perform_bitarray_cmp_impl( bitarray, str, res, res_size, 0 );
+}
+
+#if defined(__GNUC__)
+const uint8_t* utf8_lookup_perform_bitarray_cmp_popcnt( const bitarray_lookup& bitarray,
+                                                        const uint8_t*         str,
+                                                        utf8_lookup_result*    res,
+                                                        size_t*                res_size )  __attribute__((target("popcnt")));
+#endif
+
+const uint8_t* utf8_lookup_perform_bitarray_cmp_popcnt( const bitarray_lookup& bitarray,
+                                                        const uint8_t*         str,
+                                                        utf8_lookup_result*    res,
+                                                        size_t*                res_size )
+{
+	return utf8_lookup_perform_bitarray_cmp_impl( bitarray, str, res, res_size, 1 );
 }
 
 static void build_bitarray_lookup_map( std::vector<unsigned int>& cps, bitarray_lookup& output, test_case* test )
@@ -425,7 +457,8 @@ static void run_test_case(const char* test_text_file)
 		{ "utf8_lookup_popcnt", 0 ,0, 0, 0 },
 		{ "std::map", 0 ,0, 0, 0 },
 		{ "std::unordered_map", 0 ,0, 0, 0 },
-		{ "bitarray", 0 ,0, 0, 0 }
+		{ "bitarray_scalar", 0 ,0, 0, 0 },
+		{ "bitarray_popcnt", 0 ,0, 0, 0 }
 	};
 
 	std::vector<unsigned int> cps;
@@ -511,9 +544,24 @@ static void run_test_case(const char* test_text_file)
 		{
 			const uint8_t* str_iter = text;
 			while( *str_iter )
-				str_iter = utf8_lookup_perform_bitarray_cmp( bitarray, str_iter, res, &res_size );
+				str_iter = utf8_lookup_perform_bitarray_cmp_scalar( bitarray, str_iter, res, &res_size );
 		}
 		test_cases[4].runtime = cpu_tick() - start;
+	}
+
+	{
+		utf8_lookup_result res[256];
+		size_t res_size = ARRAY_LENGTH(res);
+
+		uint64_t start = cpu_tick();
+
+		for( int i = 0; i < 100; ++i )
+		{
+			const uint8_t* str_iter = text;
+			while( *str_iter )
+				str_iter = utf8_lookup_perform_bitarray_cmp_popcnt( bitarray, str_iter, res, &res_size );
+		}
+		test_cases[5].runtime = cpu_tick() - start;
 	}
 
 	printf("%-20s%-20s%-20s%-20s%-20s%-20s%-20s\n", "name", "allocs", "frees", "memused (kb)", "bytes/codepoint", "time (sec)", "GB/sec");
@@ -555,7 +603,7 @@ static void run_test_case(const char* test_text_file)
 		{
 			str_iter1 = utf8_lookup_perform_std_cmp( compare_unordered_map, str_iter1, res1, &res_size1 );
 			str_iter2 = utf8_lookup_perform( table, str_iter2, res2, &res_size2 );
-			str_iter3 = utf8_lookup_perform_bitarray_cmp( bitarray, str_iter3, res3, &res_size3 );
+			str_iter3 = utf8_lookup_perform_bitarray_cmp_popcnt( bitarray, str_iter3, res3, &res_size3 );
 
 			if( str_iter1 != str_iter2 ) { printf("mismatching str_iter!\n"); break; }
 			if( str_iter1 != str_iter3 ) { printf("mismatching str_iter!\n"); break; }
