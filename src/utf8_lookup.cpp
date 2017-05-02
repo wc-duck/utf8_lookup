@@ -74,11 +74,11 @@
 */
 
 #if defined( __GNUC__ )
-#  define ALWAYSINLINE inline __attribute__((always_inline))
+#  define UTF8_LOOKUP_ALWAYSINLINE inline __attribute__((always_inline))
 #elif defined( _MSC_VER )
-#  define ALWAYSINLINE __forceinline
+#  define UTF8_LOOKUP_ALWAYSINLINE __forceinline
 #else
-#  define ALWAYSINLINE inline
+#  define UTF8_LOOKUP_ALWAYSINLINE inline
 #endif
 
 static void utf8_lookup_cpuid( uint32_t op, uint32_t* eax, uint32_t* ebx, uint32_t* ecx, uint32_t* edx )
@@ -109,7 +109,7 @@ static bool utf8_lookup_has_popcnt()
 	return false;
 }
 
-static ALWAYSINLINE uint64_t utf8_popcnt_impl( uint64_t val, const int has_popcnt )
+static UTF8_LOOKUP_ALWAYSINLINE uint64_t utf8_popcnt_impl( uint64_t val, const int has_popcnt )
 {
 #if defined( __GNUC__ )
 	if( has_popcnt )
@@ -354,7 +354,7 @@ utf8_lookup_error utf8_lookup_calc_table_size( size_t*       table_size,
 	return UTF8_LOOKUP_ERROR_OK;
 }
 
-ALWAYSINLINE const uint8_t* utf8_lookup_perform_impl( void*               lookup,
+UTF8_LOOKUP_ALWAYSINLINE const uint8_t* utf8_lookup_perform_impl( void*               lookup,
 													  const uint8_t*      str,
 													  utf8_lookup_result* res,
 													  size_t*             res_size,
