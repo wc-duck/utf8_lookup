@@ -27,7 +27,7 @@
 */
 
 #define UTF8_LOOKUP_IMPLEMENTATION
-#include <utf8_lookup/utf8_lookup.h>
+#include "../utf8_lookup.h"
 
 #include <time.h>
 #include <stdlib.h>
