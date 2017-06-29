@@ -174,6 +174,18 @@ static unsigned int utf8_to_unicode_codepoint( const uint8_t** str )
 	return 0;
 }
 
+static size_t count_chars(const uint8_t* str)
+{
+	const uint8_t* pos = str;
+	size_t count = 0;
+	while(*pos)
+	{
+		utf8_to_unicode_codepoint( &pos );
+		++count;
+	}
+	return count;
+}
+
 #if defined( __GNUC__ )
 #  define ALWAYSINLINE inline __attribute__((always_inline))
 #elif defined( _MSC_VER )
@@ -385,9 +397,9 @@ static void find_all_codepoints( const uint8_t* text, std::vector<unsigned int>&
 	for( size_t i = 0; i < cps.size(); ++i )
 		++count[ codepoint_to_octet( cps[i] ) ];
 
-	printf( "num codepoints in file %lu\n", cps.size() );
-	printf( "octet: %7d %7d %7d %7d\n", 1, 2, 3, 4);
-	printf( "       %7u %7u %7u %7u\n\n", count[0], count[1], count[2], count[3]);
+//	printf( "num codepoints in file %lu\n", cps.size() );
+//	printf( "octet: %7d %7d %7d %7d\n", 1, 2, 3, 4);
+//	printf( "       %7u %7u %7u %7u\n\n", count[0], count[1], count[2], count[3]);
 }
 
 void build_compare_map( std::vector<unsigned int>& cps, tracked_map& output, test_case* test )
@@ -435,8 +447,6 @@ const uint8_t* utf8_lookup_perform_popcnt( void*               lookup,
 
 static void run_test_case(const char* test_text_file)
 {
-	printf("\ntest text: %s\n", test_text_file);
-
 	size_t file_size;
 	uint8_t* text_data = load_file( test_text_file, &file_size );
 	if( text_data == 0x0 )
@@ -465,9 +475,12 @@ static void run_test_case(const char* test_text_file)
 	std::vector<unsigned int> cps;
 	find_all_codepoints( text, cps );
 
+	printf("\ntest text: %s (code points %zu)\n", test_text_file, cps.size());
+
 	// build lookup map
 	void* table = build_utf8_lookup_map( cps, &test_cases[0] );
 	memcpy( &test_cases[1], &test_cases[0], sizeof(test_case) );
+	test_cases[1].name = "utf8_lookup_popcnt";
 
 	tracked_map compare_map;
 	tracked_unordered_map compare_unordered_map;
@@ -476,6 +489,9 @@ static void run_test_case(const char* test_text_file)
 	bitarray_lookup bitarray;
 	build_bitarray_lookup_map( cps, bitarray, &test_cases[4] );
 	memcpy( &test_cases[5], &test_cases[4], sizeof(test_case) );
+	test_cases[5].name = "bitarray_popcnt";
+
+	size_t txt_cp_count = count_chars(text);
 
 	{
 		utf8_lookup_result res[256];
@@ -567,17 +583,16 @@ static void run_test_case(const char* test_text_file)
 		test_cases[5].runtime = cpu_tick() - start;
 	}
 
-	printf("%-20s%-20s%-20s%-20s%-20s%-20s%-20s\n", "name", "allocs", "frees", "memused (kb)", "bytes/codepoint", "time (sec)", "GB/sec");
+	printf("%-20s%-20s%-20s%-20s%-20s%-20s%-20s\n", "name", "allocs", "frees", "memused (kb)", "bytes/codepoint", "ms/10000 cp", "GB/sec");
 	for( size_t i = 0; i < ARRAY_LENGTH(test_cases); ++i )
 	{
-		float time = cpu_ticks_to_sec( test_cases[i].runtime );
 		printf("%-20s%-20zu%-20zu%-20f%-20f%-20f%-20f\n", test_cases[i].name,
 										  	   		 	  test_cases[i].allocs,
 													 	  test_cases[i].frees,
 										  	   		 	  (float)test_cases[i].memused / 1024.0f,
 													 	  (float)(test_cases[i].memused) / (float)cps.size(),
-											   		 	  time,
-											   		 	  ( (float)file_size / ( 1024 * 1024 ) ) / time);
+											   		 	  (cpu_ticks_to_ms( test_cases[i].runtime ) / (float)txt_cp_count) * 1000.0f,
+											   		 	  ( (float)file_size / ( 1024 * 1024 ) ) / cpu_ticks_to_sec( test_cases[i].runtime ));
 	}
 
 	// check output!
