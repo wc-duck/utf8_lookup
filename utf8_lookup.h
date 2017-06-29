@@ -473,8 +473,14 @@ UTF8_LOOKUP_ALWAYSINLINE const uint8_t* utf8_lookup_perform_impl( void*         
 
 		for( int i = 0; i <= octet; ++i )
 		{
+			// make sure that we get a value between 0-63 to decide what bit the current byte.
+			// it is only octet 1 that will have more than 6 significant bits.
 			uint64_t group     = (uint64_t)(*pos & group_mask) >> (uint64_t)6;
+
+			// mask of the bits that is valid in this mask, only the first byte will have a
+			// different amount of set bits. Thereof the table above.
 			uint64_t gid       = (uint64_t)(*pos & gid_mask);
+
 			uint64_t check_bit = (uint64_t)1 << gid;
 
 			// gid mask will always be 0b111111 i.e. the lowest 6 bit set on all loops except
