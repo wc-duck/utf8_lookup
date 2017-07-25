@@ -73,8 +73,9 @@ class utf8_bench_std_alloc
 		g_num_bytes += num * sizeof(T);
 		return (pointer)(::operator new(num*sizeof(T)));
 	}
-	template< class U, class... Args >
-	void construct( U* p, Args&&... args )      { new((void*)p)T(args...); }
+
+	template< class U >
+	void construct( U* p )      { new((void*)p)T; }
 	void destroy   ( pointer p )                { p->~T(); }
 	void deallocate( pointer p, size_type num)
 	{
@@ -90,15 +91,10 @@ void reset_tracking() { g_num_alloc = 0; g_num_free = 0; g_num_bytes = 0; }
 template <class T1, class T2> bool operator== (const utf8_bench_std_alloc<T1>&, const utf8_bench_std_alloc<T2>&) throw() { return true; }
 template <class T1, class T2> bool operator!= (const utf8_bench_std_alloc<T1>&, const utf8_bench_std_alloc<T2>&) throw() { return false; }
 
-typedef std::map< unsigned int,
-				  unsigned int,
-				  std::less<unsigned int>,
-				  utf8_bench_std_alloc< std::pair<const unsigned int, unsigned int> > > tracked_map;
-typedef std::unordered_map< unsigned int,
-							unsigned int,
-							std::hash<unsigned int>,
-							std::equal_to<unsigned int>,
-							utf8_bench_std_alloc< std::pair<const unsigned int, unsigned int> > > tracked_unordered_map;
+typedef utf8_bench_std_alloc< std::pair<const unsigned int, unsigned int> > utf8_bench_alloc_t;
+
+typedef std::map< unsigned int, unsigned int, std::less<unsigned int>, utf8_bench_alloc_t > tracked_map;
+typedef std::unordered_map< unsigned int, unsigned int, std::hash<unsigned int>, std::equal_to<unsigned int>, utf8_bench_alloc_t > tracked_unordered_map;
 
 #if defined(__GNUC__)
 	inline uint64_t cpu_tick()
@@ -204,14 +200,14 @@ const uint8_t* utf8_lookup_perform_std_cmp( tracked_unordered_map& compare_map, 
 	while( *pos && res_out != res_end )
 	{
 		res_out->pos    = pos;
-		int code_point = utf8_to_unicode_codepoint( &pos );
+		unsigned int code_point = utf8_to_unicode_codepoint( &pos );
 
 		tracked_unordered_map::iterator it = compare_map.find( code_point );
 		res_out->offset = it == compare_map.end() ? 0 : it->second;
 		++res_out;
 	}
 
-	*res_size = (int)(res_out - res);
+	*res_size = (size_t)(res_out - res);
 	return pos;
 }
 
@@ -225,34 +221,16 @@ const uint8_t* utf8_lookup_perform_std_cmp( tracked_map& compare_map, const uint
 	while( *pos && res_out != res_end )
 	{
 		res_out->pos    = pos;
-		int code_point = utf8_to_unicode_codepoint( &pos );
+		unsigned int code_point = utf8_to_unicode_codepoint( &pos );
 
 		tracked_map::iterator it = compare_map.find( code_point );
 		res_out->offset = it == compare_map.end() ? 0 : it->second;
 		++res_out;
 	}
 
-	*res_size = (int)(res_out - res);
+	*res_size = (size_t)(res_out - res);
 	return pos;
 }
-
-/*static ALWAYSINLINE uint64_t utf8_popcnt_impl( uint64_t val, const int has_popcnt )
-{
-#if defined( __GNUC__ )
-	if( has_popcnt )
-		return __builtin_popcountll( (unsigned long long)val ); // the gcc implementation of popcountll is only faster when the actual instruction exists
-#endif
-
-#if defined(_MSC_VER)
-	if( has_popcnt )
-		return (uint64_t)__popcnt64((uint64_t)val);
-#endif
-
-	val = (val & 0x5555555555555555ULL) + ((val >> 1) & 0x5555555555555555ULL);
-	val = (val & 0x3333333333333333ULL) + ((val >> 2) & 0x3333333333333333ULL);
-	val = (val & 0x0F0F0F0F0F0F0F0FULL) + ((val >> 4) & 0x0F0F0F0F0F0F0F0FULL);
-	return (val * 0x0101010101010101ULL) >> 56;
-}*/
 
 struct test_case
 {
@@ -283,10 +261,10 @@ ALWAYSINLINE const uint8_t* utf8_lookup_perform_bitarray_cmp_impl( const bitarra
 	while( *pos && res_out != res_end )
 	{
 		res_out->pos   = pos;
-		int code_point = utf8_to_unicode_codepoint( &pos );
+		unsigned int code_point = utf8_to_unicode_codepoint( &pos );
 
-		int index = code_point >> 6;
-		int bit = code_point & ( 64 - 1 );
+		unsigned int index = code_point >> 6;
+		unsigned int bit = code_point & ( 64 - 1 );
 
 		uint64_t bit_mask = 1ULL << bit;
 		uint64_t lookup = bitarray.lookup[index];
@@ -299,7 +277,7 @@ ALWAYSINLINE const uint8_t* utf8_lookup_perform_bitarray_cmp_impl( const bitarra
 		++res_out;
 	}
 
-	*res_size = (int)(res_out - res);
+	*res_size = (size_t)(res_out - res);
 	return pos;
 }
 
@@ -359,7 +337,7 @@ static uint8_t* load_file( const char* file_name, size_t* file_size )
 		return 0x0;
 
 	fseek( f, 0, SEEK_END );
-	*file_size = ftell( f );
+	*file_size = (size_t)ftell( f );
 	fseek( f, 0, SEEK_SET );
 
 	uint8_t* text = (uint8_t*)malloc( *file_size + 1 );
