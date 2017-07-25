@@ -523,6 +523,16 @@ const uint8_t* utf8_lookup_perform_scalar( void*               lookup,
 }
 
 #if defined(__GNUC__)
+#  if defined(__clang__)
+#    if __has_attribute(target)
+#      define UTF8_LOOKUP_HAS_ATTRIBUTE_TARGET
+#    endif
+#  else
+#      define UTF8_LOOKUP_HAS_ATTRIBUTE_TARGET
+#  endif
+#endif
+
+#if defined(UTF8_LOOKUP_HAS_ATTRIBUTE_TARGET)
 // ... tell gcc to optimize this as if a popcnt instruction exists ...
 const uint8_t* utf8_lookup_perform_popcnt( void*               lookup,
                                            const uint8_t*      str,
