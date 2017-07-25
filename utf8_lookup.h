@@ -190,7 +190,7 @@ static UTF8_LOOKUP_ALWAYSINLINE uint64_t utf8_popcnt_impl( uint64_t val, const i
 {
 #if defined( __GNUC__ )
 	if( has_popcnt )
-		return __builtin_popcountll( (unsigned long long)val ); // the gcc implementation of popcountll is only faster when the actual instruction exists
+		return (uint64_t)__builtin_popcountll( (unsigned long long)val ); // the gcc implementation of popcountll is only faster when the actual instruction exists
 #endif
 
 #if defined(_MSC_VER)
@@ -369,7 +369,7 @@ utf8_lookup_error utf8_lookup_gen_table( void*         table,
         }
     }
 
-    *((uint64_t*)table) = curr_elem + 2;
+    *((uint64_t*)table) = (uint64_t)(curr_elem + 2);
 
 	return UTF8_LOOKUP_ERROR_OK;
 }
