@@ -194,8 +194,14 @@ static UTF8_LOOKUP_ALWAYSINLINE uint64_t utf8_popcnt_impl( uint64_t val, const i
 #endif
 
 #if defined(_MSC_VER)
+#if defined(_WIN64)
 	if( has_popcnt )
 		return (uint64_t)__popcnt64((uint64_t)val);
+#else
+	uint32_t* ptr = (uint32_t*)&val;
+	if( has_popcnt )
+		return (uint64_t)__popcnt32(ptr[0]) + __popcnt32(ptr[1]);
+#endif
 #endif
 
 	val = (val & 0x5555555555555555ULL) + ((val >> 1) & 0x5555555555555555ULL);
