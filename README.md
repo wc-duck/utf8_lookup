@@ -78,8 +78,6 @@ while( *str_iter )
 ## Performance
 
 The library is highly dependent on an efficient implementation of the population-count instruction so on cpu:s
-with this implemented in hardware this should be efficient. However it should be noted that there hasn't been 
-any big performance-tests done except the ones present in the benchmark test-program, and they can definitively
-be improved on!
+with this implemented in hardware this should be efficient. 
 
-The first test however suggests that it performs really well in lookup-speed and REALLY well in memory-usage.
+Some more indepth performance-measurements can found in [this blogpost](http://kihlander.net/utf8_lookup-a-write-up.html)
