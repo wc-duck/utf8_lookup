@@ -200,7 +200,7 @@ static UTF8_LOOKUP_ALWAYSINLINE uint64_t utf8_popcnt_impl( uint64_t val, const i
 #else
 	uint32_t* ptr = (uint32_t*)&val;
 	if( has_popcnt )
-		return (uint64_t)__popcnt32(ptr[0]) + __popcnt32(ptr[1]);
+		return (uint64_t)__popcnt(ptr[0]) + __popcnt(ptr[1]);
 #endif
 #endif
 
