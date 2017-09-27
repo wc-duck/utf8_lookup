@@ -74,9 +74,9 @@ class utf8_bench_std_alloc
 		return (pointer)(::operator new(num*sizeof(T)));
 	}
 
-	template< class U >
-	void construct( U* p )      { new((void*)p)T; }
-	void destroy   ( pointer p )                { p->~T(); }
+	template< class U, class ARG1, class ARG2, class ARG3 >
+	void construct( U* p, ARG1 a, ARG2 b, ARG3 c )       { new((void*)p)T(a, b, c); }
+	void destroy   ( pointer p ) { p->~T(); }
 	void deallocate( pointer p, size_type num)
 	{
 		++g_num_free;
@@ -289,7 +289,7 @@ const uint8_t* utf8_lookup_perform_bitarray_cmp_scalar( const bitarray_lookup& b
 	return utf8_lookup_perform_bitarray_cmp_impl( bitarray, str, res, res_size, 0 );
 }
 
-#if defined(__GNUC__)
+#if defined(UTF8_LOOKUP_HAS_ATTRIBUTE_TARGET)
 const uint8_t* utf8_lookup_perform_bitarray_cmp_popcnt( const bitarray_lookup& bitarray,
                                                         const uint8_t*         str,
                                                         utf8_lookup_result*    res,

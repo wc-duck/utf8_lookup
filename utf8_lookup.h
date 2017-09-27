@@ -530,8 +530,10 @@ const uint8_t* utf8_lookup_perform_scalar( void*               lookup,
 
 #if defined(__GNUC__)
 #  if defined(__clang__)
-#    if __has_attribute(target)
-#      define UTF8_LOOKUP_HAS_ATTRIBUTE_TARGET
+#    if defined(__has_attribute)
+#      if __has_attribute(target)
+#        define UTF8_LOOKUP_HAS_ATTRIBUTE_TARGET
+#      endif
 #    endif
 #  else
 #      define UTF8_LOOKUP_HAS_ATTRIBUTE_TARGET
